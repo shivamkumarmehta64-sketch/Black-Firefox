@@ -1,62 +1,79 @@
-# Black Browser v8.2
+﻿# Black Firefox Family
 
-A native, ultra-lightweight Windows web browser styled after Microsoft Edge Light Mode, built with C# (.NET Framework 4.8) and Microsoft WebView2. Three-layer ad blocking, local bookmarks, custom speed dials, and minimal RAM usage — no Electron, no Tauri, no browser engine bloat.
+A suite of minimal, privacy-focused browsers sharing the same design philosophy.
 
-![Black Icon](icon.png)
+## 🖤 Black Firefox (Windows Native)
+**Repo:** `shivamkumarmehta64-sketch/Black-Firefox`  
+**Stack:** C# .NET 4.8 + WebView2  
+**Platform:** Windows 10/11  
+**Binary:** ~86 KB  
 
-## ✨ Features
+- Firefox Proton dark theme (#0060df accent)
+- 3-layer AdShield ad blocker
+- Local bookmarks, history, downloads, reading list
+- Firefox View (recently closed + history + bookmarks)
+- Tab pinning, copy clean link, library button
+- One-click uBlock Origin MV2 install
+- Great Sage AI Dock (OpenAI-compatible)
+- ~35–50 MB RAM when minimized
 
-- **Edge Light Design**: clean white toolbar, pill address bar, rounded light tabs, light/dark theme.
-- **3-Layer Ad Blocker** (`src/AdShieldEngine.cs`): native domain filter, JSON payload stripper, and DOM mute-skipper with a live blocked counter (🛡 N). Includes YouTube ad-free playback.
-- **Local Bookmarks** (`black://bookmarks`): 100% local, stored in `%LOCALAPPDATA%\black-webview2\bookmarks.json` — no account required.
-- **Custom Speed Dials** (`black://dial`): add/remove your own dials on the new-tab page, stored in `custom_dials.json`.
-- **Downloads Manager** (`black://downloads`): tracks every file you download in `downloads.json`.
-- **Local History** (`black://history`): private browsing history stored locally in `history.json` — no Google sign-in.
-- **Edge Add-ons & Chrome Web Store**: direct extension access via the 🧩 button.
-- **Memory Optimization**: 32 MB cache cap, single renderer, 128 MB JS heap limit, process suspension in tray (**~35–50 MB RAM when minimized to tray**).
-- **Keyboard Shortcuts**:
-  - `Ctrl + T` New Tab · `Ctrl + W` Close Tab · `Ctrl + L` Address Bar
-  - `Ctrl + R` / `F5` Reload · `Alt + ←` / `Alt + →` Back / Forward · `F11` Fullscreen
+[View on GitHub →](https://github.com/shivamkumarmehta64-sketch/Black-Firefox)
 
-## 🛠️ Requirements
+---
 
-- Windows 10 or 11
-- .NET Framework 4.8 (preinstalled on Windows 10 1903+ / 11)
-- Microsoft Edge WebView2 Runtime (preinstalled with Edge; the runtime DLLs in this repo are included for standalone builds)
+## 💙 Blue Browser (Tauri Cross-Platform)
+**Repo:** `shivamkumarmehta64-sketch/Blue-Browser-Tauri`  
+**Stack:** TypeScript/React + Rust (Tauri)  
+**Platform:** Windows / macOS / Linux  
 
-## 🚀 Quick Start (fresh install)
+- Modern UI with React + Tailwind
+- Native performance via Tauri
+- Companion to Black Firefox for non-Windows platforms
 
+[View on GitHub →](https://github.com/shivamkumarmehta64-sketch/Blue-Browser-Tauri)
+
+---
+
+## 🌐 Website / Documentation
+**Repo:** `shivamkumarmehta64-sketch/black-browser-website`  
+**Stack:** HTML/Tailwind (static)  
+
+- Landing page, downloads, changelog
+- Hosted at GitHub Pages or deployed separately
+
+[View on GitHub →](https://github.com/shivamkumarmehta64-sketch/black-browser-website)
+
+---
+
+## Quick Start
+
+### Black Firefox (Windows)
 ```cmd
+# Download Black.exe from Releases
+# Or build from source:
 setup.bat
 ```
 
-That's it — compiles `src\*.cs` into `Black.exe`, then creates a **"Black Browser"** shortcut on your desktop.
-
-Manual build:
-
-```cmd
-C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /target:winexe /reference:Microsoft.Web.WebView2.Core.dll /reference:Microsoft.Web.WebView2.WinForms.dll /out:Black.exe src\*.cs
+### Blue Browser (Cross-Platform)
+```bash
+cd Blue-Browser-Tauri
+npm install
+npm run tauri dev
 ```
 
-Launch anytime with `run.bat` or the desktop shortcut. All browser data lives in `%LOCALAPPDATA%\black-webview2\` — delete that folder to reset the browser completely.
+---
 
-## 📁 Project Layout
+## Shared Philosophy
 
-```
-src/Program.cs           Entry point & single-instance guard
-src/BrowserForm.cs       Main window, tabs, address bar, shortcuts
-src/AdShieldEngine.cs    Native 3-layer ad blocker
-src/BookmarksManager.cs  Local bookmarks (black://bookmarks)
-src/CustomDialsManager.cs Custom speed dials (black://dial)
-src/DownloadsManager.cs  Downloads tracker (black://downloads)
-src/HistoryManager.cs    Local history (black://history)
-src/SpeedDialPage.cs     New-tab speed dial page
-src/SettingsForm.cs      Settings modal
-src/EyeCareOverlay.cs    Night-light / blue light filter
-src/MemoryTrimmer.cs     RAM trimming in tray
-MakeIcon.cs              Icon generator (dev tool)
-```
+| Principle | Implementation |
+|-----------|----------------|
+| **Zero bloat** | No Electron, no telemetry, no accounts |
+| **Local-first** | All data stored in `%LOCALAPPDATA%` |
+| **Ad-free** | 3-layer blocking (domain, JSON, DOM) |
+| **Firefox-inspired** | Proton UI, WebExtensions compatible |
+| **Open source** | MIT License, community-driven |
 
-## 📜 License
+---
 
-Distributed under the MIT License. See [LICENSE](LICENSE).
+## License
+MIT — see individual repos for details.

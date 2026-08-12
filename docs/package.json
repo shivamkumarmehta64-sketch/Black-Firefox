@@ -1,0 +1,24 @@
+{
+  "name": "black-browser-website",
+  "version": "1.0.0",
+  "description": "Single-page portfolio hub for all projects: **ytube** & **mtube** (featured working apps), **Black Browser (C#)**, **Electronics Calculator**.",
+  "main": "index.js",
+  "scripts": {
+    "build:css": "npx tailwindcss -i ./src/input.css -o ./assets/tailwind.css --minify"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shivamkumarmehta64-sketch/black-browser-website.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/shivamkumarmehta64-sketch/black-browser-website/issues"
+  },
+  "homepage": "https://github.com/shivamkumarmehta64-sketch/black-browser-website#readme",
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  }
+}

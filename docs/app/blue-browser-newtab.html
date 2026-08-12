@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>New Tab - Blue Browser</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Fonts: Inter -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Configuration -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        surface: "#0f172a",
+                        "on-surface": "#f8fafc",
+                        "surface-variant": "#1e293b",
+                        "on-surface-variant": "#cbd5e1",
+                        primary: "#38bdf8",
+                        "primary-container": "#0369a1",
+                        "on-primary-container": "#e0f2fe",
+                        secondary: "#94a3b8",
+                        "outline-variant": "#334155",
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.75rem", // Approximating roundness 12
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                    fontFamily: {
+                        headline: ["Inter", "sans-serif"],
+                        display: ["Inter", "sans-serif"],
+                        body: ["Inter", "sans-serif"],
+                        label: ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        /* Custom Animations */
+        @keyframes fade-in-up {
+            0% { opacity: 0; transform: translateY(20px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        
+        .animate-fade-in-up {
+            animation: fade-in-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            opacity: 0;
+        }
+        
+        .delay-100 { animation-delay: 100ms; }
+        .delay-200 { animation-delay: 200ms; }
+        .delay-300 { animation-delay: 300ms; }
+        .delay-400 { animation-delay: 400ms; }
+        
+        /* Glossy text effect */
+        .text-glossy {
+            background: linear-gradient(135deg, #7dd3fc 0%, #38bdf8 50%, #0284c7 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body overflow-hidden h-screen w-screen relative selection:bg-primary/30">
+<!-- Background Shader -->
+<div class="absolute inset-0 z-0">
+<!-- STITCH_SHADER_START:ANIMATION_7 class="absolute inset-0 w-full h-full opacity-60" -->
+<div class="absolute inset-0 w-full h-full opacity-60" style="display:block;">
+<canvas id="shader-canvas-ANIMATION_7" style="display:block;width:100%;height:100%"></canvas>
+<script>
+(function() {
+  const canvas = document.getElementById('shader-canvas-ANIMATION_7');
+
+  // Sync the WebGL drawing-buffer size with the CSS-driven layout size.
+  // This fires on initial layout and whenever the element is resized.
+  function syncSize() {
+    const w = canvas.clientWidth  || 1280;
+    const h = canvas.clientHeight || 720;
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width  = w;
+      canvas.height = h;
+    }
+  }
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(syncSize).observe(canvas);
+  }
+  syncSize();
+
+  const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+  if (!gl) return;
+  const vs = `attribute vec2 a_position;
+varying vec2 v_texCoord;
+void main() {
+  v_texCoord = a_position * 0.5 + 0.5;
+  gl_Position = vec4(a_position, 0.0, 1.0);
+}`;
+  const fs = `precision highp float;
+varying vec2 v_texCoord;
+uniform float u_time;
+uniform vec2 u_resolution;
+uniform vec2 u_mouse;
+
+void main() {
+    vec2 uv = v_texCoord;
+    vec2 mouse = u_mouse / u_resolution;
+    
+    // Create soft, shifting dark background
+    vec3 color = vec3(0.02, 0.03, 0.05);
+    
+    // Soft sky-blue gradient glow in the background
+    float d1 = distance(uv, vec2(0.5 + 0.1 * sin(u_time * 0.5), 0.5 + 0.1 * cos(u_time * 0.3)));
+    color += vec3(0.22, 0.74, 0.97) * (1.0 - smoothstep(0.0, 0.8, d1)) * 0.2;
+    
+    // Parallax blobs that respond to mouse
+    float d2 = distance(uv, mouse);
+    float blob = 1.0 - smoothstep(0.0, 0.4, d2);
+    color += vec3(0.22, 0.74, 0.97) * blob * 0.1;
+    
+    // Subtle animated noise/grain
+    float noise = fract(sin(dot(uv, vec2(12.9898, 78.233))) * 43758.5453);
+    color += noise * 0.01;
+
+    gl_FragColor = vec4(color, 1.0);
+}`;
+  function cs(type, src) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    return s;
+  }
+  const prog = gl.createProgram();
+  gl.attachShader(prog, cs(gl.VERTEX_SHADER, vs));
+  gl.attachShader(prog, cs(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(prog);
+  gl.useProgram(prog);
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+  const pos = gl.getAttribLocation(prog, 'a_position');
+  gl.enableVertexAttribArray(pos);
+  gl.vertexAttribPointer(pos, 2, gl.FLOAT, false, 0, 0);
+  const uTime = gl.getUniformLocation(prog, 'u_time');
+  const uRes = gl.getUniformLocation(prog, 'u_resolution');
+  const uMouse = gl.getUniformLocation(prog, 'u_mouse');
+
+  // u_mouse is in pixel coordinates matching u_resolution (ShaderToy convention).
+  // Shaders that need normalized coords should use: u_mouse / u_resolution.
+  let mouse = { x: canvas.width / 2, y: canvas.height / 2 };
+  window.addEventListener('mousemove', (event) => {
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width && rect.height) {
+      const nx = (event.clientX - rect.left) / rect.width;
+      const ny = 1.0 - (event.clientY - rect.top) / rect.height;
+      mouse.x = nx * canvas.width;
+      mouse.y = ny * canvas.height;
+    }
+  });
+
+  function render(t) {
+    if (typeof ResizeObserver === 'undefined') syncSize();
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    if (uTime) gl.uniform1f(uTime, t * 0.001);
+    if (uRes) gl.uniform2f(uRes, canvas.width, canvas.height);
+    if (uMouse) gl.uniform2f(uMouse, mouse.x, mouse.y);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    requestAnimationFrame(render);
+  }
+  render(0);
+})();
+</script>
+</div>
+<!-- STITCH_SHADER_END:ANIMATION_7 -->
+<!-- Overlay to ensure readability -->
+<div class="absolute inset-0 bg-gradient-to-b from-surface/40 via-surface/80 to-surface pointer-events-none"></div>
+</div>
+<!-- Main App Container -->
+<div class="relative z-10 flex flex-col h-full w-full">
+<!-- TopNavBar (Browser Chrome) -->
+<nav class="bg-surface/80 dark:bg-surface/80 backdrop-blur-xl font-body text-label-md border-b border-outline-variant/30 shadow-sm flex justify-between items-center px-4 h-14 w-full shrink-0">
+<!-- Left Navigation Buttons -->
+<div class="flex items-center space-x-2 w-1/4">
+<button aria-label="Back" class="text-on-surface-variant hover:bg-surface-variant/50 transition-colors p-2 rounded-full cursor-pointer active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-[20px]">arrow_back</span>
+</button>
+<button aria-label="Forward" class="text-on-surface-variant/40 hover:bg-surface-variant/50 transition-colors p-2 rounded-full cursor-pointer active:scale-95 transition-transform" disabled="">
+<span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+</button>
+<button aria-label="Reload" class="text-on-surface-variant hover:bg-surface-variant/50 transition-colors p-2 rounded-full cursor-pointer active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-[20px]">refresh</span>
+</button>
+</div>
+<!-- Center Address Bar -->
+<div class="flex-1 max-w-2xl flex justify-center">
+<div class="bg-surface-variant/40 hover:bg-surface-variant/60 border border-outline-variant/50 rounded-full h-9 flex items-center px-4 w-full max-w-xl transition-colors backdrop-blur-md">
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant mr-3">info</span>
+<input class="bg-transparent border-none focus:ring-0 text-on-surface-variant text-sm w-full p-0 cursor-default font-mono tracking-wide" readonly="" tabindex="-1" type="text" value="chrome://newtab/"/>
+<button class="text-on-surface-variant hover:text-primary transition-colors ml-3 cursor-pointer">
+<span class="material-symbols-outlined text-[18px]">star</span>
+</button>
+</div>
+</div>
+<!-- Right Actions -->
+<div class="flex items-center justify-end space-x-2 w-1/4">
+<span class="text-xl font-black text-on-surface dark:text-on-surface hidden">BrowserEngine</span>
+<button aria-label="Extensions" class="text-on-surface-variant hover:bg-surface-variant/50 transition-colors p-2 rounded-full cursor-pointer active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-[20px]">extension</span>
+</button>
+<button aria-label="Settings" class="text-on-surface-variant hover:bg-surface-variant/50 transition-colors p-2 rounded-full cursor-pointer active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+</button>
+<!-- User Profile Placeholder -->
+<button class="w-8 h-8 rounded-full bg-gradient-to-tr from-primary to-indigo-500 flex items-center justify-center text-white font-bold text-xs shadow-inner cursor-pointer active:scale-95 transition-transform ml-2">
+                    US
+                </button>
+</div>
+</nav>
+<!-- Central Content Area -->
+<main class="flex-1 flex flex-col items-center justify-center p-6 sm:p-12 overflow-y-auto">
+<div class="w-full max-w-4xl mx-auto flex flex-col items-center space-y-10">
+<!-- Branding & Clock -->
+<div class="flex flex-col items-center space-y-4 animate-fade-in-up">
+<div class="flex items-center space-x-4">
+<img alt="Blue Browser Logo" class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl shadow-2xl object-cover border border-outline-variant/20 shadow-primary/20" src="https://lh3.googleusercontent.com/aida/AP1WRLugLjsbcVXPY-8xNp9D9aa_TzvcJPohdoVZNfmOG5InBKXW8bH2PBfS7PAE7OrTklsZHHlCON7GCzqAeC6nzO3VGfB6mwpgVBmDJ-dahqYDvF0F9BC4Lkdw9dMwVy_jCBWVwgxkfUfWcyWjO22BtyvyEY8wXC01SkKxEPIlG1NemY8i3YZamYjaHEJSaW6n5Kj33lz-K9tllhN-_4atFQ5pX7VK1zLDzc6V-Ws98-A7JMSmhWtYysyViVU"/>
+<h1 class="text-5xl sm:text-7xl font-black tracking-tight font-display text-glossy pb-1">Blue</h1>
+</div>
+<!-- Digital Clock -->
+<div class="text-6xl sm:text-8xl font-black tracking-tighter text-on-surface/90 font-display drop-shadow-md" id="digital-clock">
+                        12:00
+                    </div>
+<div class="text-on-surface-variant font-medium text-lg uppercase tracking-widest" id="digital-date">
+                        Monday, Jan 1
+                    </div>
+</div>
+<!-- Search Bar -->
+<div class="w-full max-w-2xl animate-fade-in-up delay-100">
+<div class="relative group">
+<div class="absolute inset-0 bg-gradient-to-r from-primary/20 via-indigo-500/20 to-primary/20 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+<div class="relative bg-surface/50 backdrop-blur-2xl border border-outline-variant/40 shadow-2xl rounded-full flex items-center px-6 py-4 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/50 transition-all duration-300">
+<span class="material-symbols-outlined text-on-surface-variant text-[24px]">search</span>
+<input class="w-full bg-transparent border-none focus:ring-0 text-on-surface text-lg px-4 placeholder:text-on-surface-variant/50 font-body" placeholder="Search the web or type a URL" type="text"/>
+<button class="text-on-surface-variant hover:text-primary transition-colors p-2 rounded-full cursor-pointer">
+<span class="material-symbols-outlined text-[24px]">mic</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Speed Dial Grid -->
+<div class="grid grid-cols-3 sm:grid-cols-6 gap-4 sm:gap-6 w-full max-w-3xl animate-fade-in-up delay-200 mt-8">
+<!-- Tile 1 -->
+<a class="group flex flex-col items-center space-y-3 p-4 rounded-xl bg-surface/30 backdrop-blur-md border border-outline-variant/30 hover:bg-surface-variant/60 hover:border-outline-variant/60 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg shadow-black/20 cursor-pointer" href="#">
+<div class="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-on-surface font-bold text-xl group-hover:bg-primary/20 group-hover:text-primary transition-colors">
+                            G
+                        </div>
+<span class="text-xs font-medium text-on-surface-variant group-hover:text-on-surface transition-colors">GitHub</span>
+</a>
+<!-- Tile 2 -->
+<a class="group flex flex-col items-center space-y-3 p-4 rounded-xl bg-surface/30 backdrop-blur-md border border-outline-variant/30 hover:bg-surface-variant/60 hover:border-outline-variant/60 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg shadow-black/20 cursor-pointer" href="#">
+<div class="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-on-surface font-bold text-xl group-hover:bg-red-500/20 group-hover:text-red-400 transition-colors">
+                            Y
+                        </div>
+<span class="text-xs font-medium text-on-surface-variant group-hover:text-on-surface transition-colors">YouTube</span>
+</a>
+<!-- Tile 3 -->
+<a class="group flex flex-col items-center space-y-3 p-4 rounded-xl bg-surface/30 backdrop-blur-md border border-outline-variant/30 hover:bg-surface-variant/60 hover:border-outline-variant/60 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg shadow-black/20 cursor-pointer" href="#">
+<div class="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-on-surface font-bold text-xl group-hover:bg-blue-500/20 group-hover:text-blue-400 transition-colors">
+                            G
+                        </div>
+<span class="text-xs font-medium text-on-surface-variant group-hover:text-on-surface transition-colors">Google</span>
+</a>
+<!-- Tile 4 -->
+<a class="group flex flex-col items-center space-y-3 p-4 rounded-xl bg-surface/30 backdrop-blur-md border border-outline-variant/30 hover:bg-surface-variant/60 hover:border-outline-variant/60 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg shadow-black/20 cursor-pointer" href="#">
+<div class="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-on-surface font-bold text-xl group-hover:bg-red-400/20 group-hover:text-red-400 transition-colors">
+                            M
+                        </div>
+<span class="text-xs font-medium text-on-surface-variant group-hover:text-on-surface transition-colors">Gmail</span>
+</a>
+<!-- Tile 5 -->
+<a class="group flex flex-col items-center space-y-3 p-4 rounded-xl bg-surface/30 backdrop-blur-md border border-outline-variant/30 hover:bg-surface-variant/60 hover:border-outline-variant/60 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg shadow-black/20 cursor-pointer" href="#">
+<div class="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-on-surface font-bold text-xl group-hover:bg-blue-400/20 group-hover:text-blue-400 transition-colors">
+                            D
+                        </div>
+<span class="text-xs font-medium text-on-surface-variant group-hover:text-on-surface transition-colors">Docs</span>
+</a>
+<!-- Tile 6 -->
+<a class="group flex flex-col items-center space-y-3 p-4 rounded-xl bg-surface/30 backdrop-blur-md border border-outline-variant/30 hover:bg-surface-variant/60 hover:border-outline-variant/60 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg shadow-black/20 cursor-pointer" href="#">
+<div class="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-on-surface font-bold text-xl group-hover:bg-orange-500/20 group-hover:text-orange-400 transition-colors">
+                            R
+                        </div>
+<span class="text-xs font-medium text-on-surface-variant group-hover:text-on-surface transition-colors">Reddit</span>
+</a>
+</div>
+</div>
+</main>
+<!-- Footer (Status Bar) -->
+<footer class="bg-surface/60 dark:bg-surface/60 backdrop-blur-md font-label text-label-sm uppercase tracking-wider border-t border-outline-variant/20 flex justify-between items-center px-6 h-10 w-full shrink-0 z-50 animate-fade-in-up delay-300 text-secondary dark:text-secondary cursor-default">
+<div class="flex items-center space-x-6">
+<!-- Status Item 1 -->
+<div class="flex items-center space-x-2 text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[16px] text-emerald-400" style="font-variation-settings: 'FILL' 1;">shield</span>
+<span>Ad-block Active</span>
+</div>
+<!-- Status Item 2 -->
+<div class="flex items-center space-x-2 text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[16px] text-emerald-400">lock</span>
+<span>Connection Secure</span>
+</div>
+</div>
+<div class="text-on-surface-variant/60 font-mono text-xs tracking-normal">
+                v2.4.1-stable
+            </div>
+</footer>
+</div>
+<!-- Clock Script -->
+<script>
+        function updateClock() {
+            const now = new Date();
+            let hours = now.getHours();
+            let minutes = now.getMinutes();
+            
+            // Format time
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12;
+            hours = hours ? hours : 12; // the hour '0' should be '12'
+            minutes = minutes < 10 ? '0' + minutes : minutes;
+            
+            const timeString = hours + ':' + minutes;
+            document.getElementById('digital-clock').textContent = timeString;
+            
+            // Format date
+            const options = { weekday: 'long', month: 'short', day: 'numeric' };
+            document.getElementById('digital-date').textContent = now.toLocaleDateString('en-US', options);
+        }
+        
+        setInterval(updateClock, 1000);
+        updateClock(); // initial call
+    </script>
+</body></html>
