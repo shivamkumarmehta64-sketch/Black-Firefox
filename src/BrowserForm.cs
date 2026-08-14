@@ -44,7 +44,7 @@ namespace BlackBrowser
 
         private EyeCareOverlayForm eyeCareOverlay;
         private int eyeCareMode = 0;
-        private bool isDarkMode = false;
+        private bool isDarkMode = true;
 
         private CoreWebView2Environment webViewEnv;
         private int totalBlockedAds = 0;
@@ -55,7 +55,7 @@ namespace BlackBrowser
         public BrowserForm(string[] args = null)
         {
             logPath = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "debug.log");
-            Log("=== Black Browser starting (Windows 11 Fluent 2 Edition v8.5) ===");
+            Log("=== Black Browser starting (Black Firefox Glassmorphic Edition v8.6) ===");
 
             if (args != null && args.Length > 0)
             {
@@ -84,7 +84,7 @@ namespace BlackBrowser
 
             this.Width = 1280;
             this.Height = 820;
-            this.BackColor = Color.FromArgb(243, 243, 243);
+            this.BackColor = Color.FromArgb(18, 18, 22);
             this.MinimumSize = new Size(900, 600);
             this.StartPosition = FormStartPosition.CenterScreen;
 
@@ -151,16 +151,16 @@ namespace BlackBrowser
             headerContainer = new Panel();
             headerContainer.Dock = DockStyle.Top;
             headerContainer.Height = 68;
-            headerContainer.BackColor = Color.FromArgb(235, 235, 235);
+            headerContainer.BackColor = Color.FromArgb(23, 23, 28);
 
             softBanner = new Panel();
             softBanner.Dock = DockStyle.Top;
             softBanner.Height = 24;
-            softBanner.BackColor = Color.FromArgb(123, 97, 255);
+            softBanner.BackColor = Color.FromArgb(0, 96, 223);
 
             softBannerLabel = new Label();
             softBannerLabel.Dock = DockStyle.Fill;
-            softBannerLabel.Text = "✨ Google Gemini Theme Active — 100% Ad-Free YouTube & Zero Trackers";
+            softBannerLabel.Text = "⚫ Black Firefox Theme Active — 100% Ad-Free YouTube & Zero Trackers";
             softBannerLabel.ForeColor = Color.White;
             softBannerLabel.Font = new Font("Segoe UI Variable Display", 8.5f, FontStyle.Bold);
             softBannerLabel.TextAlign = ContentAlignment.MiddleCenter;
@@ -171,13 +171,13 @@ namespace BlackBrowser
             bannerTimer.Interval = 4000;
             bannerTimer.Tick += (s, e) =>
             {
-                softBannerLabel.Text = "✨ Google Gemini Theme Active — 100% Ad-Free YouTube & Zero Trackers";
+                softBannerLabel.Text = "⚫ Black Firefox Theme Active — 100% Ad-Free YouTube & Zero Trackers";
                 bannerTimer.Stop();
             };
 
             omniboxPanel = new Panel();
             omniboxPanel.Dock = DockStyle.Fill;
-            omniboxPanel.BackColor = Color.FromArgb(255, 255, 255);
+            omniboxPanel.BackColor = Color.FromArgb(28, 28, 34);
             omniboxPanel.Padding = new Padding(6, 6, 6, 6);
 
             backBtn = CreateBtn("←", 0);
@@ -199,28 +199,28 @@ namespace BlackBrowser
             actionsPanel.WrapContents = false;
             actionsPanel.Padding = new Padding(0, 2, 4, 0);
 
-            menuBtn = CreateActionBtn("⋮", Color.FromArgb(255, 255, 255), Color.FromArgb(95, 99, 104), 32);
+            menuBtn = CreateActionBtn("⋮", Color.FromArgb(38, 38, 46), Color.FromArgb(200, 205, 220), 32);
             menuBtn.Click += (s, e) => mainMenu.Show(menuBtn, new Point(menuBtn.Width - mainMenu.Width, menuBtn.Height));
 
-            addTabBtn = CreateActionBtn("+ Tab", Color.FromArgb(232, 240, 254), Color.FromArgb(0, 103, 192), 56);
+            addTabBtn = CreateActionBtn("+ Tab", Color.FromArgb(0, 96, 223), Color.FromArgb(255, 255, 255), 56);
             addTabBtn.Click += (s, e) => AddNewTab("New Tab", "about:blank");
 
-            extBtn = CreateActionBtn("🧩 Ext", Color.FromArgb(241, 243, 244), Color.FromArgb(95, 99, 104), 64);
+            extBtn = CreateActionBtn("🧩 Ext", Color.FromArgb(44, 44, 54), Color.FromArgb(200, 205, 220), 64);
             extBtn.Click += (s, e) => NavigateCurrentTab("black://extensions");
 
-            settingsBtn = CreateActionBtn("⚙️", Color.FromArgb(241, 243, 244), Color.FromArgb(95, 99, 104), 36);
+            settingsBtn = CreateActionBtn("⚙️", Color.FromArgb(44, 44, 54), Color.FromArgb(200, 205, 220), 36);
             settingsBtn.Click += (s, e) => OpenSettingsDialog(0);
 
-            notesBtn = CreateActionBtn("📝 Notes", Color.FromArgb(235, 235, 245), Color.FromArgb(40, 40, 60), 68);
+            notesBtn = CreateActionBtn("📝 Notes", Color.FromArgb(44, 44, 54), Color.FromArgb(200, 205, 220), 68);
             notesBtn.Click += (s, e) => OpenSettingsDialog(2);
 
-            eyeCareBtn = CreateActionBtn("👁 Eye", Color.FromArgb(254, 247, 224), Color.FromArgb(180, 100, 0), 64);
+            eyeCareBtn = CreateActionBtn("👁 Eye", Color.FromArgb(58, 48, 38), Color.FromArgb(255, 200, 130), 64);
             eyeCareBtn.Click += (s, e) => CycleEyeCareMode();
 
-            shieldBtn = CreateActionBtn("🛡 0", Color.FromArgb(232, 240, 254), Color.FromArgb(0, 103, 192), 62);
+            shieldBtn = CreateActionBtn("🛡 0", Color.FromArgb(0, 96, 223), Color.FromArgb(255, 255, 255), 62);
             shieldBtn.Click += (s, e) => ShowAdShieldStatus();
 
-            ramBtn = CreateActionBtn("⚡ 38MB", Color.FromArgb(230, 245, 235), Color.FromArgb(15, 120, 50), 72);
+            ramBtn = CreateActionBtn("⚡ 38MB", Color.FromArgb(38, 66, 50), Color.FromArgb(130, 235, 160), 72);
             ramBtn.Click += (s, e) =>
             {
                 MemoryTrimmer.TrimProcessMemory();
@@ -229,7 +229,7 @@ namespace BlackBrowser
                 ShowSoftCommunication("⚡ Memory Optimization Completed — Purged Working Set");
             };
 
-            starBtn = CreateActionBtn("⭐", Color.FromArgb(254, 247, 224), Color.FromArgb(180, 100, 0), 32);
+            starBtn = CreateActionBtn("⭐", Color.FromArgb(58, 48, 38), Color.FromArgb(255, 200, 130), 32);
             starBtn.Click += (s, e) => ToggleCurrentTabBookmark();
 
             actionsPanel.Controls.Add(menuBtn);
@@ -246,8 +246,8 @@ namespace BlackBrowser
             urlBar.Location = new Point(136, 7);
             urlBar.Height = 28;
             urlBar.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top;
-            urlBar.BackColor = Color.FromArgb(241, 243, 244);
-            urlBar.ForeColor = Color.FromArgb(32, 33, 36);
+            urlBar.BackColor = Color.FromArgb(44, 44, 54);
+            urlBar.ForeColor = Color.FromArgb(240, 240, 245);
             urlBar.Font = new Font("Segoe UI Variable Display", 10f);
             urlBar.BorderStyle = BorderStyle.FixedSingle;
 
@@ -338,12 +338,12 @@ namespace BlackBrowser
 
                 if (added)
                 {
-                    starBtn.BackColor = Color.FromArgb(254, 235, 180);
+                    starBtn.BackColor = Color.FromArgb(150, 110, 40);
                     ShowSoftCommunication("⭐ Bookmark Added Locally to Device!");
                 }
                 else
                 {
-                    starBtn.BackColor = Color.FromArgb(254, 247, 224);
+                    starBtn.BackColor = Color.FromArgb(58, 48, 38);
                     ShowSoftCommunication("⭐ Bookmark Removed");
                 }
             }
@@ -376,8 +376,8 @@ namespace BlackBrowser
             b.Height = 28;
             b.FlatStyle = FlatStyle.Flat;
             b.FlatAppearance.BorderSize = 0;
-            b.BackColor = Color.FromArgb(255, 255, 255);
-            b.ForeColor = Color.FromArgb(95, 99, 104);
+            b.BackColor = Color.FromArgb(38, 38, 46);
+            b.ForeColor = Color.FromArgb(200, 205, 220);
             b.Font = new Font("Segoe UI Variable Display", 9.5f, FontStyle.Bold);
             b.Cursor = Cursors.Hand;
             return b;
@@ -410,7 +410,7 @@ namespace BlackBrowser
 
             Color backColor = isPrivate
                 ? (selected ? Color.FromArgb(32, 32, 42) : Color.FromArgb(22, 22, 28))
-                : (selected ? Color.FromArgb(255, 255, 255) : Color.FromArgb(230, 233, 238));
+                : (selected ? Color.FromArgb(38, 38, 46) : Color.FromArgb(28, 28, 34));
 
             using (SolidBrush b = new SolidBrush(backColor))
             {
@@ -419,14 +419,14 @@ namespace BlackBrowser
 
             if (selected)
             {
-                Color barColor = isPrivate ? Color.FromArgb(160, 90, 240) : Color.FromArgb(0, 103, 192);
+                Color barColor = isPrivate ? Color.FromArgb(160, 90, 240) : Color.FromArgb(0, 96, 223);
                 using (Pen p = new Pen(barColor, 3))
                 {
                     e.Graphics.DrawLine(p, rect.Left, rect.Bottom - 1, rect.Right, rect.Bottom - 1);
                 }
             }
 
-            Color textColor = isPrivate ? Color.FromArgb(200, 180, 255) : (selected ? Color.FromArgb(32, 33, 36) : Color.FromArgb(95, 99, 104));
+            Color textColor = isPrivate ? Color.FromArgb(200, 180, 255) : (selected ? Color.FromArgb(240, 240, 245) : Color.FromArgb(160, 165, 180));
 
             TextRenderer.DrawText(e.Graphics, page.Text, tabControl.Font,
                 new Rectangle(rect.X + 8, rect.Y + 4, rect.Width - 26, rect.Height - 4),
@@ -634,16 +634,46 @@ namespace BlackBrowser
             isDarkMode = dark;
 
             Color bg = dark ? Color.FromArgb(18, 18, 22) : Color.FromArgb(243, 243, 243);
-            Color headerBg = dark ? Color.FromArgb(28, 28, 34) : Color.FromArgb(235, 235, 235);
-            Color omniBg = dark ? Color.FromArgb(34, 34, 42) : Color.FromArgb(255, 255, 255);
+            Color headerBg = dark ? Color.FromArgb(23, 23, 28) : Color.FromArgb(235, 235, 235);
+            Color omniBg = dark ? Color.FromArgb(28, 28, 34) : Color.FromArgb(255, 255, 255);
             Color inputBg = dark ? Color.FromArgb(44, 44, 54) : Color.FromArgb(241, 243, 244);
             Color inputFg = dark ? Color.FromArgb(240, 240, 245) : Color.FromArgb(32, 33, 36);
+            Color btnBg = dark ? Color.FromArgb(38, 38, 46) : Color.FromArgb(255, 255, 255);
+            Color btnFg = dark ? Color.FromArgb(200, 205, 220) : Color.FromArgb(95, 99, 104);
+            Color btnBgAlt = dark ? Color.FromArgb(44, 44, 54) : Color.FromArgb(241, 243, 244);
+            Color accentBg = dark ? Color.FromArgb(0, 96, 223) : Color.FromArgb(232, 240, 254);
+            Color accentFg = dark ? Color.FromArgb(255, 255, 255) : Color.FromArgb(0, 103, 192);
 
             this.BackColor = bg;
             headerContainer.BackColor = headerBg;
             omniboxPanel.BackColor = omniBg;
             urlBar.BackColor = inputBg;
             urlBar.ForeColor = inputFg;
+
+            foreach (Button b in new Button[] { backBtn, fwdBtn, reloadBtn, homeBtn })
+            {
+                b.BackColor = btnBg;
+                b.ForeColor = btnFg;
+            }
+
+            menuBtn.BackColor = btnBgAlt;
+            menuBtn.ForeColor = btnFg;
+            extBtn.BackColor = btnBgAlt;
+            extBtn.ForeColor = btnFg;
+            settingsBtn.BackColor = btnBgAlt;
+            settingsBtn.ForeColor = btnFg;
+            notesBtn.BackColor = btnBgAlt;
+            notesBtn.ForeColor = btnFg;
+            addTabBtn.BackColor = accentBg;
+            addTabBtn.ForeColor = accentFg;
+            shieldBtn.BackColor = accentBg;
+            shieldBtn.ForeColor = accentFg;
+            ramBtn.BackColor = dark ? Color.FromArgb(38, 66, 50) : Color.FromArgb(230, 245, 235);
+            ramBtn.ForeColor = dark ? Color.FromArgb(130, 235, 160) : Color.FromArgb(15, 120, 50);
+            eyeCareBtn.BackColor = dark ? Color.FromArgb(58, 48, 38) : Color.FromArgb(254, 247, 224);
+            eyeCareBtn.ForeColor = dark ? Color.FromArgb(255, 200, 130) : Color.FromArgb(180, 100, 0);
+            starBtn.BackColor = dark ? Color.FromArgb(58, 48, 38) : Color.FromArgb(254, 247, 224);
+            starBtn.ForeColor = dark ? Color.FromArgb(255, 200, 130) : Color.FromArgb(180, 100, 0);
 
             foreach (TabPage p in tabControl.TabPages)
             {
@@ -677,19 +707,19 @@ namespace BlackBrowser
             if (eyeCareMode == 1)
             {
                 eyeCareBtn.Text = "👁 Warm";
-                eyeCareBtn.BackColor = Color.FromArgb(255, 230, 180);
+                eyeCareBtn.BackColor = Color.FromArgb(70, 56, 32);
                 ShowSoftCommunication("👁️ Eye Care Filter: Warm Blue-Light Tint (25%)");
             }
             else if (eyeCareMode == 2)
             {
                 eyeCareBtn.Text = "👁 Dimmed";
-                eyeCareBtn.BackColor = Color.FromArgb(220, 220, 220);
+                eyeCareBtn.BackColor = Color.FromArgb(48, 48, 56);
                 ShowSoftCommunication("👁️ Eye Care Filter: Night Dimmer (35%)");
             }
             else
             {
                 eyeCareBtn.Text = "👁 Eye";
-                eyeCareBtn.BackColor = Color.FromArgb(254, 247, 224);
+                eyeCareBtn.BackColor = Color.FromArgb(58, 48, 38);
                 ShowSoftCommunication("👁️ Eye Care Filter: Disabled");
             }
         }
@@ -1248,7 +1278,7 @@ namespace BlackBrowser
                 {
                     trayIcon = new NotifyIcon();
                     trayIcon.Icon = new Icon(iconPath);
-                    trayIcon.Text = "Black Browser (Fluent 2)";
+                    trayIcon.Text = "Black Browser (Black Firefox Glassmorphic)";
                     trayIcon.Visible = true;
 
                     ContextMenuStrip menu = new ContextMenuStrip();
