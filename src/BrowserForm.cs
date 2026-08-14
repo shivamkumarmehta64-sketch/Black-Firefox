@@ -33,7 +33,7 @@ namespace BlackBrowser
         private Button notesBtn;
         private Button settingsBtn;
         private Button menuBtn;
-        private Button addTabBtn;
+        private Button tabNewBtn;
         private Button ramBtn;
 
         private ContextMenuStrip mainMenu;
@@ -209,8 +209,19 @@ namespace BlackBrowser
             menuBtn = CreateActionBtn("⋮", Color.FromArgb(38, 38, 46), Color.FromArgb(200, 205, 220), 32);
             menuBtn.Click += (s, e) => mainMenu.Show(menuBtn, new Point(menuBtn.Width - mainMenu.Width, menuBtn.Height));
 
-            addTabBtn = CreateActionBtn("+ Tab", Color.FromArgb(0, 96, 223), Color.FromArgb(255, 255, 255), 56);
-            addTabBtn.Click += (s, e) => AddNewTab("New Tab", "about:blank");
+            tabNewBtn = new Button();
+            tabNewBtn.Text = "＋";
+            tabNewBtn.Width = 30;
+            tabNewBtn.Height = 30;
+            tabNewBtn.FlatStyle = FlatStyle.Flat;
+            tabNewBtn.FlatAppearance.BorderSize = 0;
+            tabNewBtn.FlatAppearance.MouseOverBackColor = Color.FromArgb(58, 58, 68);
+            tabNewBtn.FlatAppearance.MouseDownBackColor = Color.FromArgb(68, 68, 80);
+            tabNewBtn.BackColor = Color.Transparent;
+            tabNewBtn.ForeColor = Color.FromArgb(180, 185, 200);
+            tabNewBtn.Font = new Font("Segoe UI Variable Display", 13f, FontStyle.Bold);
+            tabNewBtn.Cursor = Cursors.Hand;
+            tabNewBtn.Click += (s, e) => AddNewTab("New Tab", "black://home");
 
             settingsBtn = CreateActionBtn("⚙️", Color.FromArgb(44, 44, 54), Color.FromArgb(200, 205, 220), 36);
             settingsBtn.Click += (s, e) => OpenSettingsDialog(0);
@@ -237,7 +248,6 @@ namespace BlackBrowser
             starBtn.Click += (s, e) => ToggleCurrentTabBookmark();
 
             actionsPanel.Controls.Add(menuBtn);
-            actionsPanel.Controls.Add(addTabBtn);
             actionsPanel.Controls.Add(settingsBtn);
             actionsPanel.Controls.Add(notesBtn);
             actionsPanel.Controls.Add(eyeCareBtn);
@@ -331,10 +341,12 @@ namespace BlackBrowser
             tabControl.SelectedIndexChanged += OnTabChanged;
 
             this.Controls.Add(tabControl);
+            this.Controls.Add(tabNewBtn);
             this.Controls.Add(omniboxPanel);
             this.Controls.Add(softBanner);
             tabControl.SendToBack();
             omniboxPanel.BringToFront();
+            tabNewBtn.BringToFront();
             softBanner.BringToFront();
 
             this.KeyPreview = true;
@@ -380,6 +392,12 @@ namespace BlackBrowser
             omniboxPanel.Width = this.ClientSize.Width;
             omniboxPanel.BringToFront();
 
+            if (tabNewBtn != null)
+            {
+                int btnW = 32;
+                tabNewBtn.Location = new Point(this.ClientSize.Width - btnW - 8, 3 + (tabStripHeight - 32) / 2);
+            }
+
             if (omniShell != null && actionsPanel != null)
             {
                 omniShell.Width = Math.Max(240, omniboxPanel.Width - actionsPanel.Width - 24);
@@ -389,6 +407,7 @@ namespace BlackBrowser
         private void SetOmniboxVisible(bool visible)
         {
             omniboxPanel.Visible = visible;
+            if (tabNewBtn != null) tabNewBtn.Visible = visible;
             foreach (TabPage p in tabControl.TabPages)
             {
                 p.Padding = new Padding(0, visible ? 52 : 0, 0, 0);
@@ -698,29 +717,105 @@ namespace BlackBrowser
         {
             mainMenu = new ContextMenuStrip();
             mainMenu.Font = new Font("Segoe UI Variable Display", 9.5f);
+            mainMenu.ShowImageMargin = false;
+            mainMenu.BackColor = Color.FromArgb(32, 33, 36);
+            mainMenu.ForeColor = Color.FromArgb(232, 234, 237);
+            mainMenu.Renderer = new ChromeMenuRenderer();
 
-            mainMenu.Items.Add("➕ New Tab (Ctrl+T)", null, (s, e) => AddNewTab("New Tab", "black://home"));
-            mainMenu.Items.Add("🕵️ New Private Tab (Ctrl+Shift+P)", null, (s, e) => AddNewTab("Private Tab", "black://home", isPrivate: true));
-            mainMenu.Items.Add("🏠 Go to Speed Dial Home", null, (s, e) => NavigateCurrentTab("black://home"));
-            mainMenu.Items.Add("⭐ Local Bookmarks", null, (s, e) => NavigateCurrentTab("black://bookmarks"));
-            mainMenu.Items.Add("📜 Local History (Ctrl+H)", null, (s, e) => NavigateCurrentTab("black://history"));
-            mainMenu.Items.Add("📥 Local Downloads (Ctrl+J)", null, (s, e) => NavigateCurrentTab("black://downloads"));
+            mainMenu.Items.Add("New tab", null, (s, e) => AddNewTab("New Tab", "black://home"));
+            mainMenu.Items.Add("New private tab", null, (s, e) => AddNewTab("Private Tab", "black://home", isPrivate: true));
+            mainMenu.Items.Add("Reopen closed tab", null, (s, e) => ReopenLastClosedTab());
             mainMenu.Items.Add(new ToolStripSeparator());
-            mainMenu.Items.Add("↩️ Re-open Closed Tab (Ctrl+Shift+T)", null, (s, e) => ReopenLastClosedTab());
-            mainMenu.Items.Add("⚡ Optimize Memory Now", null, (s, e) =>
+
+            mainMenu.Items.Add("History", null, (s, e) => NavigateCurrentTab("black://history"));
+            mainMenu.Items.Add("Downloads", null, (s, e) => NavigateCurrentTab("black://downloads"));
+            mainMenu.Items.Add("Bookmarks", null, (s, e) => NavigateCurrentTab("black://bookmarks"));
+            mainMenu.Items.Add(new ToolStripSeparator());
+
+            mainMenu.Items.Add("Zoom in", null, (s, e) => AdjustZoom(0.1f));
+            mainMenu.Items.Add("Zoom out", null, (s, e) => AdjustZoom(-0.1f));
+            mainMenu.Items.Add("Reset zoom", null, (s, e) => AdjustZoom(0f, true));
+            mainMenu.Items.Add(new ToolStripSeparator());
+
+            mainMenu.Items.Add("Optimize memory", null, (s, e) =>
             {
                 MemoryTrimmer.TrimProcessMemory();
                 long ramMB = MemoryTrimmer.GetWorkingSetMB();
                 if (ramBtn != null) ramBtn.Text = "⚡ " + ramMB + "MB";
                 ShowSoftCommunication("⚡ Memory Optimization Completed — Purged Working Set");
             });
-            mainMenu.Items.Add("⚙️ Settings & Device Info (Ctrl+,)", null, (s, e) => OpenSettingsDialog(0));
-            mainMenu.Items.Add("📝 Dark Notes (Ctrl+Shift+N)", null, (s, e) => OpenSettingsDialog(2));
-            mainMenu.Items.Add("👁️ Cycle Eye Care Filter (Ctrl+Shift+E)", null, (s, e) => CycleEyeCareMode());
-            mainMenu.Items.Add("🌓 Toggle Dark / Light Theme (Ctrl+Shift+D)", null, (s, e) => ToggleTheme());
+            mainMenu.Items.Add("Eye care filter", null, (s, e) => CycleEyeCareMode());
+            mainMenu.Items.Add("Dark / light theme", null, (s, e) => ToggleTheme());
+            mainMenu.Items.Add("Print page", null, (s, e) =>
+            {
+                WebView2 wv = GetCurrentWebView();
+                if (wv != null && wv.CoreWebView2 != null)
+                {
+                    try { wv.CoreWebView2.ShowPrintUI(CoreWebView2PrintDialogKind.Browser); } catch { }
+                }
+            });
+            mainMenu.Items.Add("Developer tools", null, (s, e) =>
+            {
+                WebView2 wv = GetCurrentWebView();
+                if (wv != null && wv.CoreWebView2 != null)
+                {
+                    try { wv.CoreWebView2.OpenDevToolsWindow(); } catch { }
+                }
+            });
             mainMenu.Items.Add(new ToolStripSeparator());
-            mainMenu.Items.Add("✕ Close Active Tab (Ctrl+W)", null, (s, e) => CloseCurrentTab());
-            mainMenu.Items.Add("🚪 Exit Browser", null, (s, e) => ExitApp());
+
+            mainMenu.Items.Add("Settings", null, (s, e) => OpenSettingsDialog(0));
+            mainMenu.Items.Add("Dark notes", null, (s, e) => OpenSettingsDialog(2));
+            mainMenu.Items.Add(new ToolStripSeparator());
+
+            mainMenu.Items.Add("Exit", null, (s, e) => ExitApp());
+        }
+
+        private void AdjustZoom(float delta, bool reset = false)
+        {
+            WebView2 wv = GetCurrentWebView();
+            if (wv == null) return;
+            if (reset)
+            {
+                wv.ZoomFactor = 1.0;
+                ShowSoftCommunication("🔍 Zoom: 100%");
+            }
+            else
+            {
+                wv.ZoomFactor = Math.Max(0.25, Math.Min(5.0, wv.ZoomFactor + delta));
+                ShowSoftCommunication("🔍 Zoom: " + (int)(wv.ZoomFactor * 100) + "%");
+            }
+        }
+
+        private class ChromeMenuRenderer : ToolStripProfessionalRenderer
+        {
+            public ChromeMenuRenderer() : base(new ChromeMenuColorTable()) { }
+
+            protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
+            {
+                if (e.Item.Selected)
+                {
+                    Rectangle rc = new Rectangle(4, 1, e.Item.Width - 8, e.Item.Height - 2);
+                    using (var b = new SolidBrush(Color.FromArgb(66, 133, 244)))
+                    {
+                        e.Graphics.FillRectangle(b, rc);
+                    }
+                    e.Item.ForeColor = Color.White;
+                }
+                else
+                {
+                    e.Item.ForeColor = Color.FromArgb(232, 234, 237);
+                }
+            }
+        }
+
+        private class ChromeMenuColorTable : ProfessionalColorTable
+        {
+            public override Color MenuItemSelected { get { return Color.FromArgb(66, 133, 244); } }
+            public override Color MenuItemBorder { get { return Color.FromArgb(66, 133, 244); } }
+            public override Color MenuBorder { get { return Color.FromArgb(60, 64, 67); } }
+            public override Color SeparatorDark { get { return Color.FromArgb(60, 64, 67); } }
+            public override Color SeparatorLight { get { return Color.FromArgb(60, 64, 67); } }
         }
 
         private void SetTheme(bool dark)
@@ -755,8 +850,8 @@ namespace BlackBrowser
             settingsBtn.ForeColor = btnFg;
             notesBtn.BackColor = btnBgAlt;
             notesBtn.ForeColor = btnFg;
-            addTabBtn.BackColor = accentBg;
-            addTabBtn.ForeColor = accentFg;
+            tabNewBtn.ForeColor = dark ? Color.FromArgb(180, 185, 200) : Color.FromArgb(95, 99, 104);
+            tabNewBtn.FlatAppearance.MouseOverBackColor = dark ? Color.FromArgb(58, 58, 68) : Color.FromArgb(218, 220, 224);
             shieldBtn.BackColor = accentBg;
             shieldBtn.ForeColor = accentFg;
             ramBtn.BackColor = dark ? Color.FromArgb(38, 66, 50) : Color.FromArgb(230, 245, 235);

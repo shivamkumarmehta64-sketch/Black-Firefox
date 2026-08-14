@@ -133,8 +133,6 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 
 .ntp-logo{display:flex;flex-direction:column;align-items:center;gap:12px;margin-bottom:26px;animation:fadeIn 0.6s ease}
 .ntp-logo-mark{width:74px;height:74px;border-radius:24px;background:linear-gradient(135deg, #0a0e1a 0%, #121a30 100%);border:1.5px solid rgba(0,96,223,0.55);display:flex;align-items:center;justify-content:center;font-size:40px;box-shadow:0 12px 40px rgba(0,96,223,0.35), inset 0 0 30px rgba(0,96,223,0.12);animation:fadeIn 0.6s ease}
-.ntp-logo-name{font-size:26px;font-weight:600;letter-spacing:-0.4px;color:#e6ebf7}
-.ntp-logo-name span{background:linear-gradient(135deg, #4da3ff 0%, #a06bff 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 
 .search-container{width:100%;max-width:760px;margin-bottom:44px;animation:fadeIn 0.7s ease}
 .search-box{display:flex;align-items:center;width:100%;height:62px;padding:0 8px 0 26px;border-radius:31px;background:rgba(18,22,36,0.66);border:1.5px solid rgba(0,96,223,0.45);box-shadow:0 10px 40px rgba(0,0,0,0.4);backdrop-filter:blur(26px) saturate(160%);transition:all .25s cubic-bezier(0.4,0,0.2,1)}
@@ -179,12 +177,11 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 <div class='ntp-header'>
   <div class='ntp-clock' id='clock'>12:00 PM</div>
   <div class='ntp-date' id='date'>January 1, 2026</div>
-  <div class='ntp-greeting' id='greeting'>Welcome to Black Browser</div>
+  <div class='ntp-greeting' id='greeting'>Welcome</div>
 </div>
 
 <div class='ntp-logo'>
   <div class='ntp-logo-mark'>⚫</div>
-  <div class='ntp-logo-name'>Black <span>Browser</span></div>
 </div>
 
 <form class='search-container' id='homeSearch' onsubmit='return homeSearchSubmit(event)'>
@@ -252,11 +249,11 @@ function updateClock() {
   var m = now.getMinutes();
   var ampm = h >= 12 ? 'PM' : 'AM';
 
-  var greet = 'Welcome to Black Firefox';
+  var greet = 'Welcome';
   var userName = '" + System.Security.Principal.WindowsIdentity.GetCurrent().Name.Split('\\')[1] + @"';
-  if (h < 12) greet = 'Good Morning, ' + userName + ' — Black Firefox';
-  else if (h < 18) greet = 'Good Afternoon, ' + userName + ' — Black Firefox';
-  else greet = 'Good Evening, ' + userName + ' — Black Firefox';
+  if (h < 12) greet = 'Good Morning, ' + userName;
+  else if (h < 18) greet = 'Good Afternoon, ' + userName;
+  else greet = 'Good Evening, ' + userName;
 
   h = h % 12; h = h ? h : 12;
 
