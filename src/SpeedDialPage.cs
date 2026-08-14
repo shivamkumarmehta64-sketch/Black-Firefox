@@ -151,9 +151,9 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 .dial-img{position:absolute;inset:0;margin:auto;width:40px;height:40px;object-fit:contain;z-index:1;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.35))}
 .dial-label{font-size:12.5px;font-weight:600;letter-spacing:-0.1px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;color:#dde3f0}
 .dial{position:relative}
-.dial-remove{position:absolute;top:6px;right:8px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,0.45);color:#fff;font-size:12px;line-height:20px;text-align:center;opacity:0;transition:opacity .18s ease;cursor:pointer;z-index:2;border:1px solid rgba(255,255,255,0.18)}
-.dial:hover .dial-remove{opacity:1}
-.dial-remove:hover{background:#d93025}
+.dial-remove{position:absolute;top:6px;right:8px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,0.55);color:#fff;font-size:12px;line-height:22px;text-align:center;opacity:.92;transition:all .18s ease;cursor:pointer;z-index:2;border:1px solid rgba(255,255,255,0.25);box-shadow:0 2px 6px rgba(0,0,0,0.3)}
+.dial:hover .dial-remove,.dial-remove:hover{opacity:1}
+.dial-remove:hover{background:#d93025;transform:scale(1.12)}
 .dial-add-icon{background:linear-gradient(135deg, rgba(0,96,223,0.5), rgba(124,77,255,0.5));border:1.5px dashed rgba(0,96,223,0.7)}
 .dial-add-icon .dial-fallback{color:#fff;font-size:34px;font-weight:300}
 
