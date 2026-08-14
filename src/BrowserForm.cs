@@ -244,9 +244,6 @@ namespace BlackBrowser
                 ShowSoftCommunication("⚡ Memory Optimization Completed — Purged Working Set");
             };
 
-            starBtn = CreateActionBtn("⭐", Color.FromArgb(58, 48, 38), Color.FromArgb(255, 200, 130), 32);
-            starBtn.Click += (s, e) => ToggleCurrentTabBookmark();
-
             actionsPanel.Controls.Add(menuBtn);
             actionsPanel.Controls.Add(settingsBtn);
             actionsPanel.Controls.Add(notesBtn);
@@ -703,6 +700,7 @@ namespace BlackBrowser
                 if (!string.IsNullOrEmpty(u) && u != "about:blank" && !u.EndsWith("speeddial.html"))
                 {
                     closedTabStack.Push(Tuple.Create(page.Text, u));
+                    while (closedTabStack.Count > 10) closedTabStack.Pop();
                 }
             }
 
@@ -977,7 +975,7 @@ namespace BlackBrowser
                 string tabTitle = isPrivate ? "🕵️ Private Tab" : TruncateTitle(title);
                 TabPage page = new TabPage(tabTitle);
                 page.Tag = isPrivate;
-                page.Padding = new Padding(0, 44, 0, 0);
+                page.Padding = new Padding(0, 52, 0, 0);
 
                 Color defaultBg = isPrivate
                     ? Color.FromArgb(18, 18, 24)
@@ -1117,22 +1115,8 @@ namespace BlackBrowser
 
                 wv.CoreWebView2.ContainsFullScreenElementChanged += (s, e) =>
                 {
-                    this.Invoke((Action)(() =>
-                    {
-                        if (wv.CoreWebView2.ContainsFullScreenElement)
-                        {
-                            SetOmniboxVisible(false);
-                            this.FormBorderStyle = FormBorderStyle.None;
-                            this.WindowState = FormWindowState.Maximized;
-                        }
-                        else
-                        {
-                            SetOmniboxVisible(true);
-                            this.FormBorderStyle = FormBorderStyle.Sizable;
-                            this.WindowState = FormWindowState.Normal;
-                        }
-                        this.PerformLayout();
-                    }));
+                    try { this.BeginInvoke((Action)(() => HandleElementFullscreenChanged(wv))); }
+                    catch { }
                 };
 
                 AdShieldEngine.AttachAdShield(wv, () =>
@@ -1354,7 +1338,11 @@ namespace BlackBrowser
                 if (string.IsNullOrEmpty(uri))
                 {
                     faviconBox.Visible = false;
-                    faviconBox.Image = null;
+                    if (faviconBox.Image != null)
+                    {
+                        faviconBox.Image.Dispose();
+                        faviconBox.Image = null;
+                    }
                     return;
                 }
 
@@ -1364,14 +1352,20 @@ namespace BlackBrowser
                 using (System.IO.Stream st = resp.GetResponseStream())
                 {
                     System.Drawing.Image img = System.Drawing.Image.FromStream(st);
+                    System.Drawing.Image old = faviconBox.Image;
                     faviconBox.Image = img;
+                    if (old != null) old.Dispose();
                     faviconBox.Visible = true;
                 }
             }
             catch
             {
                 faviconBox.Visible = false;
-                faviconBox.Image = null;
+                if (faviconBox.Image != null)
+                {
+                    faviconBox.Image.Dispose();
+                    faviconBox.Image = null;
+                }
             }
         }
 
@@ -1765,6 +1759,43 @@ namespace BlackBrowser
         private FormWindowState prevWindowState;
         private FormBorderStyle prevBorderStyle;
 
+        private void HandleElementFullscreenChanged(WebView2 wv)
+        {
+            try
+            {
+                if (this.IsDisposed || wv == null || wv.CoreWebView2 == null) return;
+
+                if (wv.CoreWebView2.ContainsFullScreenElement)
+                {
+                    if (!isFullscreen)
+                    {
+                        prevWindowState = this.WindowState;
+                        prevBorderStyle = this.FormBorderStyle;
+                    }
+                    this.FormBorderStyle = FormBorderStyle.None;
+                    this.WindowState = FormWindowState.Maximized;
+                    SetOmniboxVisible(false);
+                }
+                else
+                {
+                    if (isFullscreen)
+                    {
+                        this.FormBorderStyle = FormBorderStyle.None;
+                        this.WindowState = FormWindowState.Maximized;
+                        SetOmniboxVisible(false);
+                    }
+                    else
+                    {
+                        this.FormBorderStyle = prevBorderStyle;
+                        this.WindowState = prevWindowState;
+                        SetOmniboxVisible(true);
+                    }
+                }
+                this.PerformLayout();
+            }
+            catch { }
+        }
+
         private void ToggleFullscreen()
         {
             if (!isFullscreen)
@@ -1811,6 +1842,8 @@ namespace BlackBrowser
                 if (gcTimer         != null) gcTimer.Dispose();
                 if (ramTimer        != null) ramTimer.Dispose();
                 if (bannerTimer     != null) bannerTimer.Dispose();
+                if (webViewEnv      != null) { try { ((System.IDisposable)webViewEnv).Dispose(); } catch { } }
+                webViewEnv = null;
             }
             base.Dispose(disposing);
         }
