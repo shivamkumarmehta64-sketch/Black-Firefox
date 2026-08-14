@@ -101,6 +101,16 @@ namespace BlackBrowser
             }
         }
 
+        public static void RemoveCustomDial(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url)) return;
+            lock (fileLock)
+            {
+                customList.RemoveAll(d => d.Url.Equals(url, StringComparison.OrdinalIgnoreCase));
+                SaveCustomDials();
+            }
+        }
+
         private static void SaveCustomDials()
         {
             try

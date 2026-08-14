@@ -79,6 +79,7 @@ namespace BlackBrowser
                         dialsSb.Append(@"
   <a class='dial' href='" + safeUrl + @"' title='" + safeTitle + @"'>" + iconBlock + @"
     <div class='dial-label'>" + safeTitle + @"</div>
+    <span class='dial-remove' onclick='event.preventDefault();event.stopPropagation();location.href=&quot;black://removedial?url=&quot;+encodeURIComponent('" + SimpleHtmlEncode(d.Url) + @"');'>✕</span>
   </a>");
                     }
                 }
@@ -97,6 +98,13 @@ namespace BlackBrowser
   <a class='dial' href='https://mail.google.com' title='Gmail'><div class='dial-icon' style='background:#fce8e6'><span class='dial-fallback'>@</span><img class='dial-img' src='https://www.google.com/s2/favicons?domain=mail.google.com&sz=128' alt='' onerror='this.style.display=&quot;none&quot;'></div><div class='dial-label'>Gmail</div></a>
   <a class='dial' href='https://www.google.com/maps' title='Maps'><div class='dial-icon' style='background:#e6f4ea'><span class='dial-fallback'>MAP</span><img class='dial-img' src='https://www.google.com/s2/favicons?domain=google.com/maps&sz=128' alt='' onerror='this.style.display=&quot;none&quot;'></div><div class='dial-label'>Maps</div></a>");
             }
+
+            // Always append the "+ Add shortcut" tile
+            dialsSb.Append(@"
+  <a class='dial dial-add' href='black://adddial' title='Add your own shortcut'>
+    <div class='dial-icon dial-add-icon'><span class='dial-fallback'>+</span></div>
+    <div class='dial-label'>Add Shortcut</div>
+  </a>");
 
             string html = @"<!DOCTYPE html>
 <html>
@@ -142,6 +150,12 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 .dial-fallback{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#1a73e8;font-weight:800;text-shadow:0 1px 2px rgba(0,0,0,0.15)}
 .dial-img{position:absolute;inset:0;margin:auto;width:40px;height:40px;object-fit:contain;z-index:1;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.35))}
 .dial-label{font-size:12.5px;font-weight:600;letter-spacing:-0.1px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;color:#dde3f0}
+.dial{position:relative}
+.dial-remove{position:absolute;top:6px;right:8px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,0.45);color:#fff;font-size:12px;line-height:20px;text-align:center;opacity:0;transition:opacity .18s ease;cursor:pointer;z-index:2;border:1px solid rgba(255,255,255,0.18)}
+.dial:hover .dial-remove{opacity:1}
+.dial-remove:hover{background:#d93025}
+.dial-add-icon{background:linear-gradient(135deg, rgba(0,96,223,0.5), rgba(124,77,255,0.5));border:1.5px dashed rgba(0,96,223,0.7)}
+.dial-add-icon .dial-fallback{color:#fff;font-size:34px;font-weight:300}
 
 .features-bar{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;max-width:900px;margin-top:38px;animation:fadeIn 1.1s ease;flex-wrap:wrap}
 .feature-pill{display:inline-flex;align-items:center;gap:8px;padding:11px 20px;border-radius:24px;background:rgba(18,22,38,0.5);border:1px solid rgba(0,96,223,0.18);backdrop-filter:blur(20px) saturate(150%);color:#dfe5f2;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s ease;text-decoration:none;box-shadow:0 2px 12px rgba(0,0,0,0.18)}
@@ -198,9 +212,10 @@ function updateClock() {
   var ampm = h >= 12 ? 'PM' : 'AM';
 
   var greet = 'Welcome to Black Firefox';
-  if (h < 12) greet = 'Good Morning, Shiva — Black Firefox';
-  else if (h < 18) greet = 'Good Afternoon, Shiva — Black Firefox';
-  else greet = 'Good Evening, Shiva — Black Firefox';
+  var userName = '" + System.Security.Principal.WindowsIdentity.GetCurrent().Name.Split('\\')[1] + @"';
+  if (h < 12) greet = 'Good Morning, ' + userName + ' — Black Firefox';
+  else if (h < 18) greet = 'Good Afternoon, ' + userName + ' — Black Firefox';
+  else greet = 'Good Evening, ' + userName + ' — Black Firefox';
 
   h = h % 12; h = h ? h : 12;
 

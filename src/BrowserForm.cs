@@ -991,6 +991,31 @@ namespace BlackBrowser
                         return;
                     }
 
+                    if (e.Uri.StartsWith("black://adddial", StringComparison.OrdinalIgnoreCase))
+                    {
+                        e.Cancel = true;
+                        PromptAddDial(wv, isDarkMode);
+                        return;
+                    }
+
+                    if (e.Uri.StartsWith("black://removedial", StringComparison.OrdinalIgnoreCase))
+                    {
+                        e.Cancel = true;
+                        int q = e.Uri.IndexOf('?');
+                        if (q >= 0)
+                        {
+                            string raw = e.Uri.Substring(q + 1);
+                            int eq = raw.IndexOf('=');
+                            if (eq >= 0)
+                            {
+                                string dialUrl = System.Uri.UnescapeDataString(raw.Substring(eq + 1));
+                                CustomDialsManager.RemoveCustomDial(dialUrl);
+                            }
+                        }
+                        wv.CoreWebView2.Navigate(SpeedDialPage.GetSpeedDialFilePath(isDarkMode));
+                        return;
+                    }
+
                     if (tabControl.SelectedTab == page)
                     {
                         string uriStr = e.Uri;
@@ -1176,6 +1201,50 @@ namespace BlackBrowser
 
                 string target = FormatUrl(input);
                 wv.CoreWebView2.Navigate(target);
+            }
+        }
+
+        private void PromptAddDial(WebView2 wv, bool dark)
+        {
+            using (var dlg = new Form())
+            {
+                dlg.Text = "Add Shortcut";
+                dlg.StartPosition = FormStartPosition.CenterParent;
+                dlg.FormBorderStyle = FormBorderStyle.FixedDialog;
+                dlg.MaximizeBox = false;
+                dlg.MinimizeBox = false;
+                dlg.ClientSize = new System.Drawing.Size(380, 150);
+                dlg.BackColor = dark ? System.Drawing.Color.FromArgb(32, 33, 36) : System.Drawing.Color.White;
+
+                var lblTitle = new Label { Text = "Shortcut name:", Left = 15, Top = 18, Width = 90, ForeColor = dark ? System.Drawing.Color.FromArgb(221, 227, 240) : System.Drawing.Color.FromArgb(32, 33, 36), BackColor = System.Drawing.Color.Transparent };
+                var txtTitle = new TextBox { Left = 110, Top = 15, Width = 250 };
+                var lblUrl = new Label { Text = "Website URL:", Left = 15, Top = 58, Width = 90, ForeColor = dark ? System.Drawing.Color.FromArgb(221, 227, 240) : System.Drawing.Color.FromArgb(32, 33, 36), BackColor = System.Drawing.Color.Transparent };
+                var txtUrl = new TextBox { Left = 110, Top = 55, Width = 250 };
+
+                var btnOk = new Button { Text = "Add", DialogResult = DialogResult.OK, Left = 195, Top = 102, Width = 80 };
+                var btnCancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, Left = 280, Top = 102, Width = 80 };
+
+                dlg.Controls.Add(lblTitle);
+                dlg.Controls.Add(txtTitle);
+                dlg.Controls.Add(lblUrl);
+                dlg.Controls.Add(txtUrl);
+                dlg.Controls.Add(btnOk);
+                dlg.Controls.Add(btnCancel);
+                dlg.AcceptButton = btnOk;
+                dlg.CancelButton = btnCancel;
+                dlg.Shown += (s, ev) => txtTitle.Focus();
+
+                if (dlg.ShowDialog(this) == DialogResult.OK)
+                {
+                    string title = txtTitle.Text.Trim();
+                    string url = txtUrl.Text.Trim();
+                    if (!string.IsNullOrWhiteSpace(url))
+                    {
+                        CustomDialsManager.AddCustomDial(title, url);
+                        if (wv != null && wv.CoreWebView2 != null)
+                            wv.CoreWebView2.Navigate(SpeedDialPage.GetSpeedDialFilePath(dark));
+                    }
+                }
             }
         }
 
