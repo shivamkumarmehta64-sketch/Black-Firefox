@@ -178,7 +178,6 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
   <a class='feature-pill' href='black://history'>📜 History</a>
   <a class='feature-pill' href='black://bookmarks'>⭐ Bookmarks</a>
   <a class='feature-pill' href='black://downloads'>📥 Downloads</a>
-  <a class='feature-pill' href='black://extensions'>🧩 Extensions</a>
   <a class='feature-pill' href='https://gemini.google.com'>✨ Gemini AI</a>
 </div>
 

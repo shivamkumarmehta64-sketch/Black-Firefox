@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.IO;
-using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
@@ -23,13 +23,13 @@ namespace BlackBrowser
         private Button fwdBtn;
         private Button reloadBtn;
         private Button homeBtn;
+        private Panel omniShell;
         private TextBox urlBar;
         private Button starBtn;
         private Button shieldBtn;
         private Button eyeCareBtn;
         private Button notesBtn;
         private Button settingsBtn;
-        private Button extBtn;
         private Button menuBtn;
         private Button addTabBtn;
         private Button ramBtn;
@@ -206,9 +206,6 @@ namespace BlackBrowser
             addTabBtn = CreateActionBtn("+ Tab", Color.FromArgb(0, 96, 223), Color.FromArgb(255, 255, 255), 56);
             addTabBtn.Click += (s, e) => AddNewTab("New Tab", "about:blank");
 
-            extBtn = CreateActionBtn("🧩 Ext", Color.FromArgb(44, 44, 54), Color.FromArgb(200, 205, 220), 64);
-            extBtn.Click += (s, e) => NavigateCurrentTab("black://extensions");
-
             settingsBtn = CreateActionBtn("⚙️", Color.FromArgb(44, 44, 54), Color.FromArgb(200, 205, 220), 36);
             settingsBtn.Click += (s, e) => OpenSettingsDialog(0);
 
@@ -235,7 +232,6 @@ namespace BlackBrowser
 
             actionsPanel.Controls.Add(menuBtn);
             actionsPanel.Controls.Add(addTabBtn);
-            actionsPanel.Controls.Add(extBtn);
             actionsPanel.Controls.Add(settingsBtn);
             actionsPanel.Controls.Add(notesBtn);
             actionsPanel.Controls.Add(eyeCareBtn);
@@ -243,14 +239,19 @@ namespace BlackBrowser
             actionsPanel.Controls.Add(ramBtn);
             actionsPanel.Controls.Add(starBtn);
 
+            omniShell = new Panel();
+            omniShell.Location = new Point(132, 5);
+            omniShell.Height = 32;
+            omniShell.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top;
+            omniShell.BackColor = Color.FromArgb(44, 44, 54);
+            omniShell.Padding = new Padding(14, 3, 8, 3);
+
             urlBar = new TextBox();
-            urlBar.Location = new Point(136, 7);
-            urlBar.Height = 28;
-            urlBar.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top;
+            urlBar.Dock = DockStyle.Fill;
+            urlBar.BorderStyle = BorderStyle.None;
             urlBar.BackColor = Color.FromArgb(44, 44, 54);
             urlBar.ForeColor = Color.FromArgb(240, 240, 245);
             urlBar.Font = new Font("Segoe UI Variable Display", 10f);
-            urlBar.BorderStyle = BorderStyle.FixedSingle;
 
             urlBar.KeyDown += (s, e) =>
             {
@@ -263,12 +264,14 @@ namespace BlackBrowser
             urlBar.Click += (s, e) => urlBar.SelectAll();
             urlBar.GotFocus += (s, e) => urlBar.SelectAll();
 
+            omniShell.Controls.Add(urlBar);
+
             omniboxPanel.Controls.Add(actionsPanel);
             omniboxPanel.Controls.Add(backBtn);
             omniboxPanel.Controls.Add(fwdBtn);
             omniboxPanel.Controls.Add(reloadBtn);
             omniboxPanel.Controls.Add(homeBtn);
-            omniboxPanel.Controls.Add(urlBar);
+            omniboxPanel.Controls.Add(omniShell);
 
             headerContainer.Controls.Add(omniboxPanel);
             headerContainer.Controls.Add(softBanner);
@@ -292,9 +295,9 @@ namespace BlackBrowser
 
             this.Resize += (s, e) =>
             {
-                if (urlBar != null && actionsPanel != null)
+                if (omniShell != null && actionsPanel != null)
                 {
-                    urlBar.Width = Math.Max(200, this.Width - actionsPanel.Width - 160);
+                    omniShell.Width = Math.Max(200, this.Width - actionsPanel.Width - 170);
                 }
 
                 if (this.WindowState == FormWindowState.Minimized)
@@ -377,10 +380,13 @@ namespace BlackBrowser
             b.Height = 28;
             b.FlatStyle = FlatStyle.Flat;
             b.FlatAppearance.BorderSize = 0;
+            b.FlatAppearance.MouseOverBackColor = Color.FromArgb(58, 58, 68);
+            b.FlatAppearance.MouseDownBackColor = Color.FromArgb(68, 68, 80);
             b.BackColor = Color.FromArgb(38, 38, 46);
             b.ForeColor = Color.FromArgb(200, 205, 220);
             b.Font = new Font("Segoe UI Variable Display", 9.5f, FontStyle.Bold);
             b.Cursor = Cursors.Hand;
+            b.Region = new Region(GetRoundedPath(new Rectangle(0, 0, 28, 28), 14));
             return b;
         }
 
@@ -393,11 +399,25 @@ namespace BlackBrowser
             b.Margin = new Padding(2, 4, 2, 4);
             b.FlatStyle = FlatStyle.Flat;
             b.FlatAppearance.BorderSize = 0;
+            b.FlatAppearance.MouseOverBackColor = Color.FromArgb(70, 70, 82);
+            b.FlatAppearance.MouseDownBackColor = Color.FromArgb(82, 82, 96);
             b.BackColor = bg;
             b.ForeColor = fg;
             b.Font = new Font("Segoe UI Variable Display", 8.5f, FontStyle.Bold);
             b.Cursor = Cursors.Hand;
             return b;
+        }
+
+        private GraphicsPath GetRoundedPath(Rectangle r, int radius)
+        {
+            GraphicsPath path = new GraphicsPath();
+            int d = radius * 2;
+            path.AddArc(r.X, r.Y, d, d, 180, 90);
+            path.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+            path.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+            path.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+            path.CloseFigure();
+            return path;
         }
 
         private void OnDrawTabItem(object sender, DrawItemEventArgs e)
@@ -413,17 +433,23 @@ namespace BlackBrowser
                 ? (selected ? Color.FromArgb(32, 32, 42) : Color.FromArgb(22, 22, 28))
                 : (selected ? Color.FromArgb(38, 38, 46) : Color.FromArgb(28, 28, 34));
 
+            Rectangle tabRect = new Rectangle(rect.X + 1, rect.Y + 1, rect.Width - 2, rect.Height - 1);
+            using (GraphicsPath p = GetRoundedPath(tabRect, 7))
             using (SolidBrush b = new SolidBrush(backColor))
             {
-                e.Graphics.FillRectangle(b, rect);
+                e.Graphics.FillPath(b, p);
             }
 
             if (selected)
             {
                 Color barColor = isPrivate ? Color.FromArgb(160, 90, 240) : Color.FromArgb(0, 96, 223);
-                using (Pen p = new Pen(barColor, 3))
+                using (SolidBrush bar = new SolidBrush(barColor))
                 {
-                    e.Graphics.DrawLine(p, rect.Left, rect.Bottom - 1, rect.Right, rect.Bottom - 1);
+                    Rectangle topBar = new Rectangle(tabRect.X + 8, tabRect.Y + 2, tabRect.Width - 16, 3);
+                    using (GraphicsPath bp = GetRoundedPath(topBar, 2))
+                    {
+                        e.Graphics.FillPath(bar, bp);
+                    }
                 }
             }
 
@@ -609,9 +635,6 @@ namespace BlackBrowser
             mainMenu.Items.Add("⭐ Local Bookmarks", null, (s, e) => NavigateCurrentTab("black://bookmarks"));
             mainMenu.Items.Add("📜 Local History (Ctrl+H)", null, (s, e) => NavigateCurrentTab("black://history"));
             mainMenu.Items.Add("📥 Local Downloads (Ctrl+J)", null, (s, e) => NavigateCurrentTab("black://downloads"));
-            mainMenu.Items.Add("🧩 Extensions Manager", null, (s, e) => NavigateCurrentTab("black://extensions"));
-            mainMenu.Items.Add("🛒 Chrome Web Store", null, (s, e) => AddNewTab("Chrome Store", "https://chromewebstore.google.com"));
-            mainMenu.Items.Add("🧩 Edge Add-ons Store", null, (s, e) => AddNewTab("Edge Add-ons", "https://microsoftedge.microsoft.com/addons"));
             mainMenu.Items.Add(new ToolStripSeparator());
             mainMenu.Items.Add("↩️ Re-open Closed Tab (Ctrl+Shift+T)", null, (s, e) => ReopenLastClosedTab());
             mainMenu.Items.Add("⚡ Optimize Memory Now", null, (s, e) =>
@@ -648,6 +671,7 @@ namespace BlackBrowser
             this.BackColor = bg;
             headerContainer.BackColor = headerBg;
             omniboxPanel.BackColor = omniBg;
+            omniShell.BackColor = inputBg;
             urlBar.BackColor = inputBg;
             urlBar.ForeColor = inputFg;
 
@@ -659,8 +683,6 @@ namespace BlackBrowser
 
             menuBtn.BackColor = btnBgAlt;
             menuBtn.ForeColor = btnFg;
-            extBtn.BackColor = btnBgAlt;
-            extBtn.ForeColor = btnFg;
             settingsBtn.BackColor = btnBgAlt;
             settingsBtn.ForeColor = btnFg;
             notesBtn.BackColor = btnBgAlt;
@@ -739,8 +761,7 @@ namespace BlackBrowser
                     "black-webview2");
 
                 CoreWebView2EnvironmentOptions options = new CoreWebView2EnvironmentOptions();
-                options.AdditionalBrowserArguments = "--enable-features=msWebView2Extensions --allow-file-access-from-files";
-                try { options.AreBrowserExtensionsEnabled = true; } catch { }
+                options.AdditionalBrowserArguments = "--allow-file-access-from-files";
 
                 webViewEnv = await CoreWebView2Environment.CreateAsync(null, userDataFolder, options);
                 Log("Environment created successfully with standard WebView2 environment settings");
@@ -876,39 +897,13 @@ namespace BlackBrowser
 
                         if (e.DownloadOperation != null)
                         {
-                            e.DownloadOperation.StateChanged += async (ds, de) =>
+                            e.DownloadOperation.StateChanged += (ds, de) =>
                             {
                                 try
                                 {
                                     if (e.DownloadOperation.State == CoreWebView2DownloadState.Completed)
                                     {
                                         ShowSoftCommunication("✅ Download Complete: " + name);
-                                        string dlUrl = e.DownloadOperation.Uri != null ? e.DownloadOperation.Uri.ToString() : "";
-                                        bool looksCrx = name.EndsWith(".crx", StringComparison.OrdinalIgnoreCase)
-                                            || (path != null && path.EndsWith(".crx", StringComparison.OrdinalIgnoreCase))
-                                            || dlUrl.Contains("crx")
-                                            || IsCrxFile(path);
-                                        if (looksCrx)
-                                        {
-                                            string unpackedDir = ExtensionInstaller.UnpackCrx(path);
-                                            if (unpackedDir != null)
-                                            {
-                                                try
-                                                {
-                                                    var ext = await wv.CoreWebView2.Profile.AddBrowserExtensionAsync(unpackedDir);
-                                                    if (ext != null)
-                                                    {
-                                                        string extName = !string.IsNullOrEmpty(ext.Name) ? ext.Name : name;
-                                                        ShowSoftCommunication("🧩 Extension Installed & Enabled: " + extName);
-                                                    }
-                                                }
-                                                catch (Exception ex2)
-                                                {
-                                                    Log("AddBrowserExtension error: " + ex2.Message);
-                                                    ShowSoftCommunication("⚠️ Extension could not be enabled: " + name);
-                                                }
-                                            }
-                                        }
                                     }
                                     else if (e.DownloadOperation.State == CoreWebView2DownloadState.Interrupted)
                                     {
@@ -916,17 +911,11 @@ namespace BlackBrowser
                                         ShowSoftCommunication("⚠️ Download Interrupted: " + name + " (" + e.DownloadOperation.InterruptReason.ToString() + ")");
                                     }
                                 }
-                                catch (Exception ex3)
-                                {
-                                    Log("Download StateChanged error: " + ex3.ToString());
-                                }
+                                catch { }
                             };
                         }
                     }
-                    catch (Exception ex)
-                    {
-                        Log("DownloadStarting error: " + ex.ToString());
-                    }
+                    catch { }
                 };
 
                 wv.CoreWebView2.ContainsFullScreenElementChanged += (s, e) =>
@@ -983,23 +972,6 @@ namespace BlackBrowser
                         return;
                     }
 
-                    if (e.Uri.StartsWith("black://extensions", StringComparison.OrdinalIgnoreCase) ||
-                        e.Uri.StartsWith("about:extensions", StringComparison.OrdinalIgnoreCase))
-                    {
-                        e.Cancel = true;
-                        bool navigated = false;
-                        if (e.Uri.Contains("?action="))
-                        {
-                            navigated = HandleExtensionAction(e.Uri);
-                        }
-                        if (!navigated)
-                        {
-                            wv.CoreWebView2.NavigateToString(ExtensionsManager.GetExtensionsHtml(isDarkMode));
-                        }
-                        if (tabControl.SelectedTab == page) { urlBar.Text = "black://extensions"; page.Text = "Extensions"; }
-                        return;
-                    }
-
                     if (tabControl.SelectedTab == page)
                     {
                         string uriStr = e.Uri;
@@ -1052,10 +1024,6 @@ namespace BlackBrowser
                 else if (url == "black://downloads" || url == "about:downloads")
                 {
                     wv.CoreWebView2.NavigateToString(DownloadsManager.GetDownloadsHtml(isDarkMode));
-                }
-                else if (url == "black://extensions" || url == "about:extensions")
-                {
-                    wv.CoreWebView2.NavigateToString(ExtensionsManager.GetExtensionsHtml(isDarkMode));
                 }
                 else
                 {
@@ -1114,6 +1082,23 @@ namespace BlackBrowser
             {
                 UpdateNavButtons();
             }
+
+            SuspendBackgroundWebViews();
+        }
+
+        private void SuspendBackgroundWebViews()
+        {
+            TabPage current = tabControl.SelectedTab;
+            foreach (TabPage page in tabControl.TabPages)
+            {
+                if (page == current) continue;
+                WebView2 wv = GetWebView(page);
+                if (wv != null && wv.CoreWebView2 != null)
+                {
+                    try { wv.CoreWebView2.TrySuspendAsync(); } catch { }
+                }
+            }
+            ResumeActiveWebView();
         }
 
         private void UpdateNavButtons()
@@ -1170,187 +1155,8 @@ namespace BlackBrowser
                     return;
                 }
 
-                if (input.StartsWith("black://extensions", StringComparison.OrdinalIgnoreCase) ||
-                    input.StartsWith("about:extensions", StringComparison.OrdinalIgnoreCase))
-                {
-                    bool handledNav = false;
-                    if (input.Contains("?action="))
-                    {
-                        handledNav = HandleExtensionAction(input);
-                    }
-                    if (!handledNav)
-                    {
-                        wv.CoreWebView2.NavigateToString(ExtensionsManager.GetExtensionsHtml(isDarkMode));
-                    }
-                    urlBar.Text = "black://extensions";
-                    if (tabControl.SelectedTab != null) tabControl.SelectedTab.Text = "Extensions";
-                    return;
-                }
-
                 string target = FormatUrl(input);
                 wv.CoreWebView2.Navigate(target);
-            }
-        }
-
-        private bool HandleExtensionAction(string uri)
-        {
-            try
-            {
-                if (uri.Contains("action=install") && uri.Contains("src="))
-                {
-                    int srcIdx = uri.IndexOf("src=");
-                    if (srcIdx != -1)
-                    {
-                        string src = Uri.UnescapeDataString(uri.Substring(srcIdx + 4));
-                        int ampIdx = src.IndexOf("&");
-                        if (ampIdx != -1) src = src.Substring(0, ampIdx);
-
-                        InstallExtensionFromStore(src);
-                        return true;
-                    }
-                }
-
-                if (uri.Contains("action=load_unpacked"))
-                {
-                    using (FolderBrowserDialog fbd = new FolderBrowserDialog())
-                    {
-                        fbd.Description = "Select Unpacked Extension Folder (containing manifest.json)";
-                        if (fbd.ShowDialog() == DialogResult.OK && !string.IsNullOrWhiteSpace(fbd.SelectedPath))
-                        {
-                            string folderName = Path.GetFileName(fbd.SelectedPath);
-                            string extBaseDir = Path.Combine(
-                                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                                "black-webview2", "Extensions", folderName);
-
-                            if (Directory.Exists(extBaseDir)) Directory.Delete(extBaseDir, true);
-                            Directory.CreateDirectory(extBaseDir);
-
-                            foreach (string dirPath in Directory.GetDirectories(fbd.SelectedPath, "*", SearchOption.AllDirectories))
-                            {
-                                Directory.CreateDirectory(dirPath.Replace(fbd.SelectedPath, extBaseDir));
-                            }
-                            foreach (string filePath in Directory.GetFiles(fbd.SelectedPath, "*.*", SearchOption.AllDirectories))
-                            {
-                                File.Copy(filePath, filePath.Replace(fbd.SelectedPath, extBaseDir), true);
-                            }
-
-                            WebView2 wv = GetCurrentWebView();
-                            if (wv != null && wv.CoreWebView2 != null)
-                            {
-                                try { wv.CoreWebView2.Profile.AddBrowserExtensionAsync(extBaseDir); } catch { }
-                            }
-
-                            ShowSoftCommunication("🧩 Unpacked Extension Loaded: " + folderName);
-                        }
-                    }
-                }
-                else if (uri.Contains("action=remove") && uri.Contains("id="))
-                {
-                    int idIdx = uri.IndexOf("id=");
-                    if (idIdx != -1)
-                    {
-                        string id = Uri.UnescapeDataString(uri.Substring(idIdx + 3));
-                        int ampIdx = id.IndexOf("&");
-                        if (ampIdx != -1) id = id.Substring(0, ampIdx);
-
-                        string extDir = Path.Combine(
-                            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                            "black-webview2", "Extensions", id);
-
-                        if (Directory.Exists(extDir))
-                        {
-                            Directory.Delete(extDir, true);
-                            ShowSoftCommunication("🗑️ Extension Removed: " + id);
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Log("ExtensionAction Error: " + ex.ToString());
-            }
-            return false;
-        }
-
-        private bool IsCrxFile(string path)
-        {
-            try
-            {
-                if (string.IsNullOrEmpty(path) || !File.Exists(path)) return false;
-                using (FileStream fs = File.OpenRead(path))
-                {
-                    if (fs.Length < 4) return false;
-                    byte[] magic = new byte[4];
-                    fs.Read(magic, 0, 4);
-                    // CRX v2/v3 header magic: "Cr24"
-                    return magic[0] == 0x43 && magic[1] == 0x72 && magic[2] == 0x32 && magic[3] == 0x34;
-                }
-            }
-            catch { return false; }
-        }
-
-        private void InstallExtensionFromStore(string input)
-        {
-            try
-            {
-                if (string.IsNullOrWhiteSpace(input)) return;
-
-                string trimmed = input.Trim();
-                string extId = "";
-                bool isEdge = false;
-
-                // Chrome Web Store link: https://chromewebstore.google.com/detail/<name>/<id>
-                Match chromeMatch = Regex.Match(trimmed, @"chromewebstore\.google\.com/detail/[^/]+/([a-p]{32})", RegexOptions.IgnoreCase);
-                if (chromeMatch.Success) extId = chromeMatch.Groups[1].Value;
-
-                // Legacy Chrome link: chrome.google.com/webstore/detail/<name>/<id>
-                if (extId.Length == 0)
-                {
-                    Match legacyMatch = Regex.Match(trimmed, @"chrome\.google\.com/webstore/detail/[^/]+/([a-p]{32})", RegexOptions.IgnoreCase);
-                    if (legacyMatch.Success) extId = legacyMatch.Groups[1].Value;
-                }
-
-                // Edge Add-ons link: microsoftedge.microsoft.com/addons/detail/<name>/<id>
-                Match edgeMatch = Regex.Match(trimmed, @"microsoftedge\.microsoft\.com/addons/detail/[^/]+/([a-p]{32})", RegexOptions.IgnoreCase);
-                if (edgeMatch.Success) { extId = edgeMatch.Groups[1].Value; isEdge = true; }
-
-                // Raw extension ID: 32 chars from [a-p]
-                if (extId.Length == 0)
-                {
-                    Match rawMatch = Regex.Match(trimmed, @"^([a-p]{32})$", RegexOptions.IgnoreCase);
-                    if (rawMatch.Success) extId = rawMatch.Groups[1].Value;
-                }
-
-                if (extId.Length != 32)
-                {
-                    ShowSoftCommunication("⚠️ Could not find a valid extension ID in that link. Try a Chrome Web Store or Edge Add-ons link, or a 32-character extension ID.");
-                    return;
-                }
-
-                extId = extId.ToLowerInvariant();
-
-                string crxUrl;
-                if (isEdge)
-                {
-                    crxUrl = "https://edge.microsoft.com/extensionwebstorebase/v1/crx?response=redirect&x=id%3D" + extId + "%26installsource%3Dondemand%26uc";
-                    ShowSoftCommunication("📦 Downloading extension from Edge Add-ons...");
-                }
-                else
-                {
-                    crxUrl = "https://clients2.google.com/service/update2/crx?response=redirect&acceptformat=crx2,crx3&prodversion=128.0.0.0&x=id%3D" + extId + "%26installsource%3Dondemand%26uc";
-                    ShowSoftCommunication("📦 Downloading extension from Chrome Web Store...");
-                }
-
-                WebView2 wv = GetCurrentWebView();
-                if (wv != null && wv.CoreWebView2 != null)
-                {
-                    wv.CoreWebView2.Navigate(crxUrl);
-                }
-            }
-            catch (Exception ex)
-            {
-                Log("InstallFromStore Error: " + ex.ToString());
-                ShowSoftCommunication("⚠️ Install failed: " + ex.Message);
             }
         }
 
