@@ -255,7 +255,18 @@ namespace BlackBrowser
                 if (e.KeyCode == Keys.Enter)
                 {
                     e.SuppressKeyPress = true;
-                    NavigateCurrentTab(urlBar.Text.Trim());
+                    if (e.Control)
+                    {
+                        string text = urlBar.Text.Trim();
+                        if (!string.IsNullOrWhiteSpace(text))
+                            NavigateCurrentTab("https://" + text.Replace("http://", "").Replace("https://", "") + ".com");
+                        else
+                            NavigateCurrentTab(urlBar.Text.Trim());
+                    }
+                    else
+                    {
+                        NavigateCurrentTab(urlBar.Text.Trim());
+                    }
                 }
             };
             urlBar.Click += (s, e) => urlBar.SelectAll();
@@ -998,6 +1009,25 @@ namespace BlackBrowser
                         return;
                     }
 
+                    if (e.Uri.StartsWith("black://setsearch", StringComparison.OrdinalIgnoreCase))
+                    {
+                        e.Cancel = true;
+                        int qs = e.Uri.IndexOf('?');
+                        if (qs >= 0)
+                        {
+                            string qraw = e.Uri.Substring(qs + 1);
+                            int qeq = qraw.IndexOf('=');
+                            if (qeq >= 0)
+                            {
+                                string engine = qraw.Substring(qeq + 1).Trim().ToLowerInvariant();
+                                if (engine == "google" || engine == "duckduckgo" || engine == "bing" || engine == "youtube")
+                                    SettingsStore.SearchEngine = engine;
+                            }
+                        }
+                        wv.CoreWebView2.Navigate(SpeedDialPage.GetSpeedDialFilePath(isDarkMode));
+                        return;
+                    }
+
                     if (e.Uri.StartsWith("black://removedial", StringComparison.OrdinalIgnoreCase))
                     {
                         e.Cancel = true;
@@ -1266,7 +1296,7 @@ namespace BlackBrowser
             if (input.Contains(".") && !input.Contains(" "))
                 return "https://" + input;
 
-            return "https://www.google.com/search?q=" + Uri.EscapeDataString(input);
+            return SettingsStore.GetSearchUrl(input);
         }
 
         private void SuspendAllWebViews()
@@ -1440,6 +1470,27 @@ namespace BlackBrowser
                 e.SuppressKeyPress = true;
                 urlBar.Focus();
                 urlBar.SelectAll();
+            }
+            else if (e.Control && e.KeyCode == Keys.D)
+            {
+                e.SuppressKeyPress = true;
+                ToggleCurrentTabBookmark();
+            }
+            else if (e.Alt && e.KeyCode == Keys.D)
+            {
+                e.SuppressKeyPress = true;
+                urlBar.Focus();
+                urlBar.SelectAll();
+            }
+            else if (e.KeyCode == Keys.Escape)
+            {
+                e.SuppressKeyPress = true;
+                WebView2 escWv = GetCurrentWebView();
+                if (escWv != null && escWv.CoreWebView2 != null)
+                {
+                    try { escWv.CoreWebView2.Stop(); } catch { }
+                    urlBar.Text = "";
+                }
             }
             else if (e.Control && e.KeyCode == Keys.Oemcomma)
             {

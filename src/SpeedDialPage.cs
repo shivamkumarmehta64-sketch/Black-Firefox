@@ -140,6 +140,10 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 .search-box input::placeholder{color:#7d85a0}
 .search-box button{background:linear-gradient(135deg, #0060df 0%, #4da3ff 100%);border:none;color:#ffffff;font-weight:700;font-size:15px;cursor:pointer;padding:0 30px;border-radius:24px;height:46px;box-shadow:0 4px 18px rgba(0,96,223,0.45);transition:all .15s ease}
 .search-box button:hover{transform:scale(1.04);box-shadow:0 6px 26px rgba(0,96,223,0.6)}
+.engine-picker{margin-right:10px}
+.engine-picker select{background:rgba(18,22,38,0.8);color:#8ab6ff;border:1px solid rgba(0,96,223,0.35);border-radius:16px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer;outline:none;font-family:'Inter',sans-serif;transition:all .2s ease}
+.engine-picker select:hover{border-color:#4da3ff;color:#cfe2ff}
+.engine-picker select option{background:#121624;color:#dfe5f2}
 
 .dials-heading{width:100%;max-width:960px;text-align:center;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#8a93b0;margin-bottom:18px;animation:fadeIn 0.8s ease}
 .dials-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(116px,1fr));gap:18px;width:100%;max-width:960px;animation:fadeIn 0.9s ease}
@@ -175,10 +179,18 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
   <div class='ai-status-badge'>⚫ Black Firefox Glassmorphic • 100% Private</div>
 </div>
 
-<form class='search-container' action='https://www.google.com/search' method='get'>
+<form class='search-container' id='homeSearch' onsubmit='return homeSearchSubmit(event)'>
   <div class='search-box'>
-    <span class='search-icon'>⚫</span>
-    <input type='text' name='q' placeholder='Search Google or type a URL...' autofocus autocomplete='off'>
+    <span class='search-icon'>🔍</span>
+    <input id='searchInput' type='text' placeholder='Search the web or type a URL...' autofocus autocomplete='off'>
+    <div class='engine-picker'>
+      <select id='engineSelect'>
+        <option value='google'" + (SettingsStore.SearchEngine == "google" ? " selected" : "") + @">Google</option>
+        <option value='duckduckgo'" + (SettingsStore.SearchEngine == "duckduckgo" ? " selected" : "") + @">DuckDuckGo</option>
+        <option value='bing'" + (SettingsStore.SearchEngine == "bing" ? " selected" : "") + @">Bing</option>
+        <option value='youtube'" + (SettingsStore.SearchEngine == "youtube" ? " selected" : "") + @">YouTube</option>
+      </select>
+    </div>
     <button type='submit'>Search</button>
   </div>
 </form>
@@ -204,6 +216,27 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 </div>
 
 <script>
+var ENGINES = {
+  google: 'https://www.google.com/search?q=',
+  duckduckgo: 'https://duckduckgo.com/?q=',
+  bing: 'https://www.bing.com/search?q=',
+  youtube: 'https://www.youtube.com/results?search_query='
+};
+function homeSearchSubmit(ev) {
+  var q = document.getElementById('searchInput').value.trim();
+  if (!q) { ev.preventDefault(); return false; }
+  var eng = document.getElementById('engineSelect').value;
+  if (q.indexOf('.') >= 0 && q.indexOf(' ') < 0 && !q.indexOf('http') === 0) {
+    location.href = 'https://' + q;
+  } else {
+    location.href = (ENGINES[eng] || ENGINES.google) + encodeURIComponent(q);
+  }
+  return false;
+}
+document.getElementById('engineSelect').addEventListener('change', function() {
+  location.href = 'black://setsearch?engine=' + this.value;
+});
+
 function pad(n){return n<10?'0'+n:n}
 function updateClock() {
   var now = new Date();
