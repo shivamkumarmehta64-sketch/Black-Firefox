@@ -413,11 +413,34 @@ namespace BlackBrowser
         {
             omniboxPanel.Visible = visible;
             if (tabNewBtn != null) tabNewBtn.Visible = visible;
-            foreach (TabPage p in tabControl.TabPages)
+
+            int stripH = tabControl.DisplayRectangle.Y;
+
+            if (visible)
             {
-                p.Padding = new Padding(0, visible ? 52 : 0, 0, 0);
+                tabControl.Dock = DockStyle.Fill;
+                tabControl.Location = new Point(0, 0);
+                tabControl.Width = this.ClientSize.Width;
+                tabControl.Height = this.ClientSize.Height;
+                foreach (TabPage p in tabControl.TabPages)
+                {
+                    p.Padding = new Padding(0, 52, 0, 0);
+                }
             }
+            else
+            {
+                tabControl.Dock = DockStyle.None;
+                tabControl.Location = new Point(0, -stripH);
+                tabControl.Width = this.ClientSize.Width;
+                tabControl.Height = this.ClientSize.Height + stripH;
+                foreach (TabPage p in tabControl.TabPages)
+                {
+                    p.Padding = new Padding(0, 0, 0, 0);
+                }
+            }
+
             PositionOmnibox();
+            this.PerformLayout();
         }
 
         private void ToggleCurrentTabBookmark()

@@ -1,7 +1,4 @@
 using System;
-using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Drawing.Imaging;
 using System.IO;
 using System.Text;
 using System.Windows.Forms;
@@ -36,54 +33,6 @@ namespace BlackBrowser
                 return "https://www.google.com/s2/favicons?domain=" + host + "&sz=128";
             }
             catch { return ""; }
-        }
-
-        private static string cachedAppIcon = null;
-
-        private static string GetAppIconDataUri()
-        {
-            if (cachedAppIcon != null) return cachedAppIcon;
-            try
-            {
-                Icon appIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
-                if (appIcon == null) return "⚫";
-                using (Bitmap bmp = appIcon.ToBitmap())
-                using (Bitmap canvas = new Bitmap(128, 128, PixelFormat.Format32bppArgb))
-                {
-                    using (Graphics g = Graphics.FromImage(canvas))
-                    {
-                        g.SmoothingMode = SmoothingMode.AntiAlias;
-                        g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                        using (GraphicsPath path = RoundRectPath(0, 0, 128, 128, 28))
-                        {
-                            g.Clear(Color.Transparent);
-                            g.FillPath(new SolidBrush(Color.FromArgb(10, 14, 26)), path);
-                            g.SetClip(path);
-                            g.DrawImage(bmp, new Rectangle(14, 14, 100, 100));
-                            g.ResetClip();
-                        }
-                    }
-                    using (MemoryStream ms = new MemoryStream())
-                    {
-                        canvas.Save(ms, ImageFormat.Png);
-                        cachedAppIcon = "data:image/png;base64," + Convert.ToBase64String(ms.ToArray());
-                        return cachedAppIcon;
-                    }
-                }
-            }
-            catch { return "⚫"; }
-        }
-
-        private static GraphicsPath RoundRectPath(int x, int y, int w, int h, int r)
-        {
-            GraphicsPath path = new GraphicsPath();
-            int d = r * 2;
-            path.AddArc(x, y, d, d, 180, 90);
-            path.AddArc(x + w - d, y, d, d, 270, 90);
-            path.AddArc(x + w - d, y + h - d, d, d, 0, 90);
-            path.AddArc(x, y + h - d, d, d, 90, 90);
-            path.CloseFigure();
-            return path;
         }
 
         public static string GetSpeedDialFilePath(bool isDarkMode)
@@ -167,40 +116,38 @@ namespace BlackBrowser
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%}
-body{background:linear-gradient(160deg, #0b0d14 0%, #11151f 45%, #0d1020 100%);background-attachment:fixed;font-family:'Inter','Segoe UI Variable Display','Plus Jakarta Sans',sans-serif;color:#ffffff;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:40px 24px 48px;overflow-x:hidden;-webkit-font-smoothing:antialiased;position:relative}
+body{background:linear-gradient(160deg, #05060d 0%, #0a0f1c 45%, #0d1020 100%);background-attachment:fixed;font-family:'Inter','Segoe UI Variable Display','Plus Jakarta Sans',sans-serif;color:#ffffff;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:34px 24px 44px;overflow-x:hidden;-webkit-font-smoothing:antialiased;position:relative}
 
-/* Aurora glow layers */
-body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;background:
- radial-gradient(1100px 700px at 12% 8%, rgba(0,96,223,0.30), transparent 62%),
- radial-gradient(900px 650px at 88% 16%, rgba(124,77,255,0.24), transparent 60%),
- radial-gradient(1000px 900px at 50% 108%, rgba(0,180,216,0.16), transparent 62%);
- filter:blur(2px)}
-body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(90% 90% at 50% 40%, transparent 55%, rgba(6,8,14,0.6) 100%)}
+/* Cinematic animated aurora layers */
+body::before{content:'';position:fixed;inset:-20%;z-index:-2;pointer-events:none;background:
+ radial-gradient(40% 40% at 18% 12%, rgba(0,96,223,0.42), transparent 60%),
+ radial-gradient(36% 36% at 82% 18%, rgba(124,77,255,0.38), transparent 62%),
+ radial-gradient(44% 44% at 50% 108%, rgba(0,180,216,0.28), transparent 60%),
+ radial-gradient(30% 30% at 30% 70%, rgba(255,64,129,0.14), transparent 60%);
+ filter:blur(46px);animation:auroraDrift 26s ease-in-out infinite alternate}
+body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(90% 90% at 50% 40%, transparent 52%, rgba(4,6,12,0.72) 100%)}
 
-.ntp-header{text-align:center;margin-bottom:26px;animation:fadeIn 0.5s ease}
-.ntp-clock{font-size:34px;font-weight:300;letter-spacing:-1px;background:linear-gradient(135deg, #6cb4ff 0%, #0060df 55%, #a06bff 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;user-select:none;line-height:1.05;filter:drop-shadow(0 6px 20px rgba(0,96,223,0.3))}
-.ntp-date{font-size:13px;font-weight:500;margin-top:5px;color:#8a93b0;letter-spacing:0.5px;text-transform:uppercase}
-.ntp-greeting{font-size:16px;font-weight:600;margin-top:9px;color:#c7cede;letter-spacing:-0.2px}
+.ntp-header{text-align:center;margin-bottom:34px;animation:fadeIn 0.5s ease}
+.ntp-greeting{font-size:17px;font-weight:600;margin-bottom:10px;color:#c7cede;letter-spacing:0.4px;animation:greetIn .7s cubic-bezier(0.2,0.7,0.3,1) backwards}
+.ntp-clock{font-size:46px;font-weight:300;letter-spacing:-1.5px;background:linear-gradient(135deg, #6cb4ff 0%, #0060df 55%, #a06bff 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;user-select:none;line-height:1.05;filter:drop-shadow(0 8px 26px rgba(0,96,223,0.35));animation:fadeIn 0.6s ease}
+.ntp-date{font-size:13px;font-weight:500;margin-top:9px;color:#8a93b0;letter-spacing:1.2px;text-transform:uppercase;animation:fadeIn 0.7s ease}
 
-.ntp-logo{display:flex;flex-direction:column;align-items:center;gap:12px;margin-bottom:26px;animation:fadeIn 0.6s ease}
-.ntp-logo-mark{width:74px;height:74px;border-radius:24px;object-fit:cover;box-shadow:0 12px 40px rgba(0,96,223,0.35);animation:logoFloat 4s ease-in-out infinite}
-
-.search-container{width:100%;max-width:760px;margin-bottom:44px;animation:fadeIn 0.7s ease}
-.search-box{display:flex;align-items:center;width:100%;height:62px;padding:0 8px 0 26px;border-radius:31px;background:rgba(18,22,36,0.66);border:1.5px solid rgba(0,96,223,0.45);box-shadow:0 10px 40px rgba(0,0,0,0.4);backdrop-filter:blur(26px) saturate(160%);transition:all .25s cubic-bezier(0.4,0,0.2,1)}
-.search-box:hover,.search-box:focus-within{box-shadow:0 14px 52px rgba(0,96,223,0.42);border-color:#4da3ff;transform:translateY(-1px)}
-.search-icon{color:#4da3ff;font-size:20px;margin-right:14px}
-.search-box input{flex:1;background:transparent;border:none;outline:none;color:#ffffff;font-size:17px;font-weight:400;font-family:'Inter',sans-serif}
+.search-container{width:100%;max-width:760px;margin-bottom:40px;animation:fadeIn 0.7s ease}
+.search-box{display:flex;align-items:center;width:100%;height:60px;padding:0 8px 0 24px;border-radius:30px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.14);box-shadow:0 10px 44px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.12);backdrop-filter:blur(30px) saturate(170%);transition:all .25s cubic-bezier(0.4,0,0.2,1)}
+.search-box:hover,.search-box:focus-within{box-shadow:0 16px 58px rgba(0,96,223,0.4), inset 0 1px 0 rgba(255,255,255,0.16);border-color:rgba(77,163,255,0.65);transform:translateY(-1px)}
+.search-icon{color:#4da3ff;font-size:19px;margin-right:14px;opacity:.9}
+.search-box input{flex:1;background:transparent;border:none;outline:none;color:#ffffff;font-size:16px;font-weight:400;font-family:'Inter',sans-serif}
 .search-box input::placeholder{color:#7d85a0}
-.search-box button{background:linear-gradient(135deg, #0060df 0%, #4da3ff 100%);border:none;color:#ffffff;font-weight:700;font-size:15px;cursor:pointer;padding:0 30px;border-radius:24px;height:46px;box-shadow:0 4px 18px rgba(0,96,223,0.45);transition:all .15s ease}
-.search-box button:hover{transform:scale(1.04);box-shadow:0 6px 26px rgba(0,96,223,0.6)}
+.search-box button{background:linear-gradient(135deg, #0060df 0%, #4da3ff 100%);border:none;color:#ffffff;font-weight:700;font-size:15px;cursor:pointer;padding:0 28px;border-radius:23px;height:44px;box-shadow:0 4px 18px rgba(0,96,223,0.5);transition:all .15s ease}
+.search-box button:hover{transform:scale(1.04);box-shadow:0 6px 26px rgba(0,96,223,0.65)}
 .engine-picker{margin-right:10px}
-.engine-picker select{background:rgba(18,22,38,0.8);color:#8ab6ff;border:1px solid rgba(0,96,223,0.35);border-radius:16px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer;outline:none;font-family:'Inter',sans-serif;transition:all .2s ease}
+.engine-picker select{background:rgba(255,255,255,0.1);color:#8ab6ff;border:1px solid rgba(255,255,255,0.18);border-radius:16px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer;outline:none;font-family:'Inter',sans-serif;transition:all .2s ease;backdrop-filter:blur(12px)}
 .engine-picker select:hover{border-color:#4da3ff;color:#cfe2ff}
 .engine-picker select option{background:#121624;color:#dfe5f2}
 
-.dials-heading{width:100%;max-width:960px;text-align:center;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#7f88a6;margin-bottom:20px;animation:fadeIn 0.8s ease}
-.dials-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:16px;width:100%;max-width:960px;animation:fadeIn 0.9s ease}
-.dial{display:flex;flex-direction:column;align-items:center;gap:10px;padding:18px 8px 14px;border-radius:20px;background:rgba(18,22,38,0.5);border:1px solid rgba(0,96,223,0.16);backdrop-filter:blur(22px) saturate(150%);cursor:pointer;transition:all .22s cubic-bezier(0.4,0,0.2,1);text-decoration:none;color:#ffffff;box-shadow:0 4px 18px rgba(0,0,0,0.22);animation:dialIn .5s cubic-bezier(0.2,0.7,0.3,1) backwards}
+.dials-heading{width:100%;max-width:960px;text-align:center;font-size:12px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:#7f88a6;margin-bottom:20px;animation:fadeIn 0.8s ease}
+.dials-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:14px;width:100%;max-width:960px;animation:fadeIn 0.9s ease}
+.dial{display:flex;flex-direction:column;align-items:center;gap:10px;padding:18px 8px 14px;border-radius:20px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.11);backdrop-filter:blur(22px) saturate(160%);cursor:pointer;transition:all .22s cubic-bezier(0.4,0,0.2,1);text-decoration:none;color:#ffffff;box-shadow:0 4px 20px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.08);animation:dialIn .5s cubic-bezier(0.2,0.7,0.3,1) backwards}
 .dial:nth-child(1){animation-delay:.05s}
 .dial:nth-child(2){animation-delay:.1s}
 .dial:nth-child(3){animation-delay:.15s}
@@ -211,7 +158,7 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 .dial:nth-child(8){animation-delay:.4s}
 .dial:nth-child(9){animation-delay:.45s}
 .dial:nth-child(10){animation-delay:.5s}
-.dial:hover{transform:translateY(-6px) scale(1.04);border-color:#0060df;background:rgba(22,28,48,0.62);box-shadow:0 18px 44px rgba(0,96,223,0.35)}
+.dial:hover{transform:translateY(-6px) scale(1.04);border-color:rgba(77,163,255,0.6);background:rgba(255,255,255,0.09);box-shadow:0 18px 46px rgba(0,96,223,0.35), inset 0 1px 0 rgba(255,255,255,0.12)}
 .dial-icon{width:52px;height:52px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;box-shadow:0 6px 18px rgba(0,0,0,0.3);transition:transform .22s ease;position:relative;overflow:hidden}
 .dial:hover .dial-icon{transform:scale(1.1) rotate(-2deg)}
 .dial-fallback{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#1a73e8;font-weight:800;text-shadow:0 1px 2px rgba(0,0,0,0.15)}
@@ -224,27 +171,24 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 .dial-add-icon{background:linear-gradient(135deg, rgba(0,96,223,0.5), rgba(124,77,255,0.5));border:1.5px dashed rgba(0,96,223,0.7)}
 .dial-add-icon .dial-fallback{color:#fff;font-size:34px;font-weight:300}
 
-.features-bar{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;max-width:900px;margin-top:34px;animation:fadeIn 1.1s ease;flex-wrap:wrap}
-.feature-pill{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:22px;background:rgba(18,22,38,0.5);border:1px solid rgba(0,96,223,0.18);backdrop-filter:blur(20px) saturate(150%);color:#dfe5f2;font-size:12.5px;font-weight:600;cursor:pointer;transition:all .2s ease;text-decoration:none;box-shadow:0 2px 12px rgba(0,0,0,0.18)}
-.feature-pill:hover{transform:translateY(-2px);border-color:#0060df;box-shadow:0 8px 28px rgba(0,96,223,0.35);color:#8ab6ff}
+.features-bar{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;max-width:900px;margin-top:36px;animation:fadeIn 1.1s ease;flex-wrap:wrap}
+.feature-pill{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:22px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.11);backdrop-filter:blur(20px) saturate(160%);color:#dfe5f2;font-size:12.5px;font-weight:600;cursor:pointer;transition:all .2s ease;text-decoration:none;box-shadow:0 2px 14px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.08)}
+.feature-pill:hover{transform:translateY(-2px);border-color:rgba(77,163,255,0.55);box-shadow:0 8px 30px rgba(0,96,223,0.35);color:#8ab6ff}
 
-.footer-note{margin-top:38px;font-size:12px;color:#a6adc8;display:flex;align-items:center;gap:16px;background:rgba(18,22,38,0.42);padding:11px 24px;border-radius:22px;backdrop-filter:blur(16px);border:1px solid rgba(0,96,223,0.16)}
+.footer-note{margin-top:36px;font-size:12px;color:#a6adc8;display:flex;align-items:center;gap:16px;background:rgba(255,255,255,0.04);padding:11px 24px;border-radius:22px;backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,0.1)}
 
 @keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-@keyframes logoFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes greetIn{from{opacity:0;letter-spacing:4px}to{opacity:1;letter-spacing:0.4px}}
 @keyframes dialIn{from{opacity:0;transform:translateY(18px) scale(0.92)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes auroraDrift{0%{transform:translate3d(-3%,-2%,0) scale(1) rotate(0deg)}50%{transform:translate3d(4%,3%,0) scale(1.08) rotate(3deg)}100%{transform:translate3d(-2%,2%,0) scale(1.02) rotate(-2deg)}}
 </style>
 </head>
 <body>
 
 <div class='ntp-header'>
+  <div class='ntp-greeting' id='greeting'>Welcome</div>
   <div class='ntp-clock' id='clock'>12:00 PM</div>
   <div class='ntp-date' id='date'>January 1, 2026</div>
-  <div class='ntp-greeting' id='greeting'>Welcome</div>
-</div>
-
-<div class='ntp-logo'>
-  <img class='ntp-logo-mark' src='" + GetAppIconDataUri() + @"' alt='' width='74' height='74'>
 </div>
 
 <form class='search-container' id='homeSearch' onsubmit='return homeSearchSubmit(event)'>
