@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
@@ -781,6 +782,8 @@ namespace BlackBrowser
 
                 await wv.EnsureCoreWebView2Async(webViewEnv);
 
+                try { wv.CoreWebView2.Settings.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"; } catch { }
+
                 wv.CoreWebView2.ProcessFailed += (s, e) =>
                 {
                     Log("ProcessFailed: " + e.ProcessFailedKind.ToString());
@@ -873,24 +876,37 @@ namespace BlackBrowser
 
                         if (e.DownloadOperation != null)
                         {
-                            e.DownloadOperation.StateChanged += (ds, de) =>
+                            e.DownloadOperation.StateChanged += async (ds, de) =>
                             {
                                 try
                                 {
                                     if (e.DownloadOperation.State == CoreWebView2DownloadState.Completed)
                                     {
                                         ShowSoftCommunication("✅ Download Complete: " + name);
-                                        if (name.EndsWith(".crx", StringComparison.OrdinalIgnoreCase) || (path != null && path.EndsWith(".crx", StringComparison.OrdinalIgnoreCase)))
+                                        string dlUrl = e.DownloadOperation.Uri != null ? e.DownloadOperation.Uri.ToString() : "";
+                                        bool looksCrx = name.EndsWith(".crx", StringComparison.OrdinalIgnoreCase)
+                                            || (path != null && path.EndsWith(".crx", StringComparison.OrdinalIgnoreCase))
+                                            || dlUrl.Contains("crx")
+                                            || IsCrxFile(path);
+                                        if (looksCrx)
                                         {
                                             string unpackedDir = ExtensionInstaller.UnpackCrx(path);
                                             if (unpackedDir != null)
                                             {
                                                 try
                                                 {
-                                                    wv.CoreWebView2.Profile.AddBrowserExtensionAsync(unpackedDir);
+                                                    var ext = await wv.CoreWebView2.Profile.AddBrowserExtensionAsync(unpackedDir);
+                                                    if (ext != null)
+                                                    {
+                                                        string extName = !string.IsNullOrEmpty(ext.Name) ? ext.Name : name;
+                                                        ShowSoftCommunication("🧩 Extension Installed & Enabled: " + extName);
+                                                    }
                                                 }
-                                                catch { }
-                                                ShowSoftCommunication("🧩 Extension Installed & Enabled: " + name);
+                                                catch (Exception ex2)
+                                                {
+                                                    Log("AddBrowserExtension error: " + ex2.Message);
+                                                    ShowSoftCommunication("⚠️ Extension could not be enabled: " + name);
+                                                }
                                             }
                                         }
                                     }
@@ -900,11 +916,17 @@ namespace BlackBrowser
                                         ShowSoftCommunication("⚠️ Download Interrupted: " + name + " (" + e.DownloadOperation.InterruptReason.ToString() + ")");
                                     }
                                 }
-                                catch { }
+                                catch (Exception ex3)
+                                {
+                                    Log("Download StateChanged error: " + ex3.ToString());
+                                }
                             };
                         }
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        Log("DownloadStarting error: " + ex.ToString());
+                    }
                 };
 
                 wv.CoreWebView2.ContainsFullScreenElementChanged += (s, e) =>
@@ -965,11 +987,15 @@ namespace BlackBrowser
                         e.Uri.StartsWith("about:extensions", StringComparison.OrdinalIgnoreCase))
                     {
                         e.Cancel = true;
+                        bool navigated = false;
                         if (e.Uri.Contains("?action="))
                         {
-                            HandleExtensionAction(e.Uri);
+                            navigated = HandleExtensionAction(e.Uri);
                         }
-                        wv.CoreWebView2.NavigateToString(ExtensionsManager.GetExtensionsHtml(isDarkMode));
+                        if (!navigated)
+                        {
+                            wv.CoreWebView2.NavigateToString(ExtensionsManager.GetExtensionsHtml(isDarkMode));
+                        }
                         if (tabControl.SelectedTab == page) { urlBar.Text = "black://extensions"; page.Text = "Extensions"; }
                         return;
                     }
@@ -1147,11 +1173,15 @@ namespace BlackBrowser
                 if (input.StartsWith("black://extensions", StringComparison.OrdinalIgnoreCase) ||
                     input.StartsWith("about:extensions", StringComparison.OrdinalIgnoreCase))
                 {
+                    bool handledNav = false;
                     if (input.Contains("?action="))
                     {
-                        HandleExtensionAction(input);
+                        handledNav = HandleExtensionAction(input);
                     }
-                    wv.CoreWebView2.NavigateToString(ExtensionsManager.GetExtensionsHtml(isDarkMode));
+                    if (!handledNav)
+                    {
+                        wv.CoreWebView2.NavigateToString(ExtensionsManager.GetExtensionsHtml(isDarkMode));
+                    }
                     urlBar.Text = "black://extensions";
                     if (tabControl.SelectedTab != null) tabControl.SelectedTab.Text = "Extensions";
                     return;
@@ -1162,10 +1192,24 @@ namespace BlackBrowser
             }
         }
 
-        private void HandleExtensionAction(string uri)
+        private bool HandleExtensionAction(string uri)
         {
             try
             {
+                if (uri.Contains("action=install") && uri.Contains("src="))
+                {
+                    int srcIdx = uri.IndexOf("src=");
+                    if (srcIdx != -1)
+                    {
+                        string src = Uri.UnescapeDataString(uri.Substring(srcIdx + 4));
+                        int ampIdx = src.IndexOf("&");
+                        if (ampIdx != -1) src = src.Substring(0, ampIdx);
+
+                        InstallExtensionFromStore(src);
+                        return true;
+                    }
+                }
+
                 if (uri.Contains("action=load_unpacked"))
                 {
                     using (FolderBrowserDialog fbd = new FolderBrowserDialog())
@@ -1224,6 +1268,89 @@ namespace BlackBrowser
             catch (Exception ex)
             {
                 Log("ExtensionAction Error: " + ex.ToString());
+            }
+            return false;
+        }
+
+        private bool IsCrxFile(string path)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(path) || !File.Exists(path)) return false;
+                using (FileStream fs = File.OpenRead(path))
+                {
+                    if (fs.Length < 4) return false;
+                    byte[] magic = new byte[4];
+                    fs.Read(magic, 0, 4);
+                    // CRX v2/v3 header magic: "Cr24"
+                    return magic[0] == 0x43 && magic[1] == 0x72 && magic[2] == 0x32 && magic[3] == 0x34;
+                }
+            }
+            catch { return false; }
+        }
+
+        private void InstallExtensionFromStore(string input)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(input)) return;
+
+                string trimmed = input.Trim();
+                string extId = "";
+                bool isEdge = false;
+
+                // Chrome Web Store link: https://chromewebstore.google.com/detail/<name>/<id>
+                Match chromeMatch = Regex.Match(trimmed, @"chromewebstore\.google\.com/detail/[^/]+/([a-p]{32})", RegexOptions.IgnoreCase);
+                if (chromeMatch.Success) extId = chromeMatch.Groups[1].Value;
+
+                // Legacy Chrome link: chrome.google.com/webstore/detail/<name>/<id>
+                if (extId.Length == 0)
+                {
+                    Match legacyMatch = Regex.Match(trimmed, @"chrome\.google\.com/webstore/detail/[^/]+/([a-p]{32})", RegexOptions.IgnoreCase);
+                    if (legacyMatch.Success) extId = legacyMatch.Groups[1].Value;
+                }
+
+                // Edge Add-ons link: microsoftedge.microsoft.com/addons/detail/<name>/<id>
+                Match edgeMatch = Regex.Match(trimmed, @"microsoftedge\.microsoft\.com/addons/detail/[^/]+/([a-p]{32})", RegexOptions.IgnoreCase);
+                if (edgeMatch.Success) { extId = edgeMatch.Groups[1].Value; isEdge = true; }
+
+                // Raw extension ID: 32 chars from [a-p]
+                if (extId.Length == 0)
+                {
+                    Match rawMatch = Regex.Match(trimmed, @"^([a-p]{32})$", RegexOptions.IgnoreCase);
+                    if (rawMatch.Success) extId = rawMatch.Groups[1].Value;
+                }
+
+                if (extId.Length != 32)
+                {
+                    ShowSoftCommunication("⚠️ Could not find a valid extension ID in that link. Try a Chrome Web Store or Edge Add-ons link, or a 32-character extension ID.");
+                    return;
+                }
+
+                extId = extId.ToLowerInvariant();
+
+                string crxUrl;
+                if (isEdge)
+                {
+                    crxUrl = "https://edge.microsoft.com/extensionwebstorebase/v1/crx?response=redirect&x=id%3D" + extId + "%26installsource%3Dondemand%26uc";
+                    ShowSoftCommunication("📦 Downloading extension from Edge Add-ons...");
+                }
+                else
+                {
+                    crxUrl = "https://clients2.google.com/service/update2/crx?response=redirect&acceptformat=crx2,crx3&prodversion=128.0.0.0&x=id%3D" + extId + "%26installsource%3Dondemand%26uc";
+                    ShowSoftCommunication("📦 Downloading extension from Chrome Web Store...");
+                }
+
+                WebView2 wv = GetCurrentWebView();
+                if (wv != null && wv.CoreWebView2 != null)
+                {
+                    wv.CoreWebView2.Navigate(crxUrl);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log("InstallFromStore Error: " + ex.ToString());
+                ShowSoftCommunication("⚠️ Install failed: " + ex.Message);
             }
         }
 

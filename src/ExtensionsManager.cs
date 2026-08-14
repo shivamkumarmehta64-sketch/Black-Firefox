@@ -132,6 +132,15 @@ body{font-family:'Segoe UI Variable Display','Plus Jakarta Sans','Inter',sans-se
 .dev-mode-group{display:flex;align-items:center;gap:10px;background:" + devBarBg + @";padding:8px 18px;border-radius:20px;border:1px solid " + cardBorder + @"}
 .dev-mode-label{font-size:13.5px;font-weight:600;color:" + textColor + @"}
 
+.install-panel{display:flex;flex-direction:column;gap:10px;margin-bottom:20px;background:" + devBarBg + @";padding:16px 20px;border-radius:16px;border:1px solid " + cardBorder + @"}
+.install-title{font-size:15px;font-weight:700;color:" + textColor + @";display:flex;align-items:center;gap:8px}
+.install-row{display:flex;gap:10px;flex-wrap:wrap}
+.install-row input{flex:1;min-width:260px;height:40px;padding:0 16px;border-radius:20px;border:1px solid " + cardBorder + @";background:" + cardBg + @";color:" + textColor + @";font-size:13.5px;outline:none}
+.install-row input:focus{border-color:#0067c0}
+.install-row button{height:40px;padding:0 24px;border-radius:20px;background:linear-gradient(135deg,#0067c0,#1a73e8);color:#fff;border:none;font-size:13.5px;font-weight:700;cursor:pointer;transition:all .15s ease;box-shadow:0 4px 12px rgba(0,103,192,0.3)}
+.install-row button:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,103,192,0.4)}
+.install-hint{font-size:12px;color:" + subTextColor + @";line-height:1.5}
+
 .dev-toolbar{display:flex;align-items:center;gap:12px;margin-bottom:24px;background:" + devBarBg + @";padding:12px 20px;border-radius:16px;border:1px solid " + cardBorder + @";flex-wrap:wrap}
 .action-btn{padding:8px 18px;border-radius:18px;background:#0067c0;color:#fff;text-decoration:none;font-size:13.5px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:all .15s ease;box-shadow:0 4px 12px rgba(0,103,192,0.25)}
 .action-btn:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,103,192,0.35)}
@@ -193,6 +202,15 @@ input:checked + .slider:before{transform:translateX(20px)}
   </div>
 </div>
 
+<div class='install-panel' id='installPanel'>
+  <div class='install-title'>🔗 Install Extension from Store Link</div>
+  <div class='install-row'>
+    <input type='text' id='installUrl' placeholder='Paste Chrome Web Store / Edge Add-ons link, or extension ID...'>
+    <button onclick='installFromLink()'>⚡ Install</button>
+  </div>
+  <div class='install-hint'>Works with links like <b>chromewebstore.google.com/detail/.../cjpalhdlnbpafiamejdnhcphjbkeiagm</b> or <b>microsoftedge.microsoft.com/addons/detail/.../elhekieabhbkpmcefcoobjddigjcaadp</b></div>
+</div>
+
 <div class='dev-toolbar' id='devToolbar'>
   <a class='action-btn' href='black://extensions?action=load_unpacked'>📁 Load unpacked</a>
   <a class='action-btn secondary' href='black://extensions'>🔄 Update</a>
@@ -222,6 +240,12 @@ function filterExts(query) {
       card.style.display = 'none';
     }
   });
+}
+
+function installFromLink() {
+  var val = (document.getElementById('installUrl').value || '').trim();
+  if (!val) { alert('Please paste a Chrome Web Store or Edge Add-ons link, or an extension ID.'); return; }
+  location.href = 'black://extensions?action=install&src=' + encodeURIComponent(val);
 }
 </script>
 
