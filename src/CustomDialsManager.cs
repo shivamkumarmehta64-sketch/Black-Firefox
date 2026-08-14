@@ -47,13 +47,19 @@ namespace BlackBrowser
                         customList = new List<CustomDialItem>
                         {
                             new CustomDialItem { Title = "Google", Url = "https://www.google.com", IconText = "G", BgColor = "#e8f0fe", FgColor = "#1a73e8" },
+                            new CustomDialItem { Title = "Gemini", Url = "https://gemini.google.com", IconText = "AI", BgColor = "#e8f0fe", FgColor = "#1a73e8" },
                             new CustomDialItem { Title = "YouTube", Url = "https://www.youtube.com", IconText = "Y", BgColor = "#fce8e6", FgColor = "#d93025" },
                             new CustomDialItem { Title = "YT Music", Url = "https://music.youtube.com", IconText = "M", BgColor = "#fef7e0", FgColor = "#f29900" },
-                            new CustomDialItem { Title = "Chrome Store", Url = "https://chromewebstore.google.com", IconText = "🛒", BgColor = "#e8f0fe", FgColor = "#1a73e8" },
+                            new CustomDialItem { Title = "Gmail", Url = "https://mail.google.com", IconText = "@", BgColor = "#fce8e6", FgColor = "#d93025" },
+                            new CustomDialItem { Title = "Maps", Url = "https://www.google.com/maps", IconText = "MAP", BgColor = "#e6f4ea", FgColor = "#107c41" },
                             new CustomDialItem { Title = "GitHub", Url = "https://github.com", IconText = "GH", BgColor = "#e8eaed", FgColor = "#202124" },
-                            new CustomDialItem { Title = "Reddit", Url = "https://reddit.com", IconText = "R", BgColor = "#fce8e6", FgColor = "#d93025" },
                             new CustomDialItem { Title = "ChatGPT", Url = "https://chatgpt.com", IconText = "AI", BgColor = "#e6f4ea", FgColor = "#107c41" },
-                            new CustomDialItem { Title = "Edge Add-ons", Url = "https://microsoftedge.microsoft.com/addons", IconText = "🧩", BgColor = "#e8f0fe", FgColor = "#1a73e8" }
+                            new CustomDialItem { Title = "Reddit", Url = "https://reddit.com", IconText = "R", BgColor = "#fce8e6", FgColor = "#d93025" },
+                            new CustomDialItem { Title = "Chrome Store", Url = "https://chromewebstore.google.com", IconText = "🛒", BgColor = "#e8f0fe", FgColor = "#1a73e8" },
+                            new CustomDialItem { Title = "Edge Add-ons", Url = "https://microsoftedge.microsoft.com/addons", IconText = "🧩", BgColor = "#e8f0fe", FgColor = "#1a73e8" },
+                            new CustomDialItem { Title = "X / Twitter", Url = "https://x.com", IconText = "X", BgColor = "#e8eaed", FgColor = "#202124" },
+                            new CustomDialItem { Title = "Instagram", Url = "https://www.instagram.com", IconText = "IG", BgColor = "#fce8e6", FgColor = "#d93025" },
+                            new CustomDialItem { Title = "Netflix", Url = "https://www.netflix.com", IconText = "N", BgColor = "#e8eaed", FgColor = "#b1060f" }
                         };
                         SaveCustomDials();
                     }
