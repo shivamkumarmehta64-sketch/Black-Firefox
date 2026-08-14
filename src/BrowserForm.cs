@@ -1000,6 +1000,8 @@ namespace BlackBrowser
 
                 try { wv.CoreWebView2.Settings.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"; } catch { }
 
+                try { wv.CoreWebView2.MemoryUsageTargetLevel = CoreWebView2MemoryUsageTargetLevel.Low; } catch { }
+
                 wv.CoreWebView2.ProcessFailed += (s, e) =>
                 {
                     Log("ProcessFailed: " + e.ProcessFailedKind.ToString());
