@@ -12,7 +12,7 @@ namespace BlackBrowser
 {
     public class BrowserForm : Form
     {
-        private Panel headerContainer;
+        
         private Panel omniboxPanel;
         private FlowLayoutPanel actionsPanel;
         private Panel softBanner;
@@ -149,21 +149,16 @@ namespace BlackBrowser
 
         private void InitializeUI()
         {
-            headerContainer = new Panel();
-            headerContainer.Dock = DockStyle.Top;
-            headerContainer.Height = 68;
-            headerContainer.BackColor = Color.FromArgb(23, 23, 28);
-
             softBanner = new Panel();
-            softBanner.Dock = DockStyle.Top;
-            softBanner.Height = 24;
-            softBanner.BackColor = Color.FromArgb(0, 96, 223);
+            softBanner.Dock = DockStyle.Bottom;
+            softBanner.Height = 26;
+            softBanner.BackColor = Color.FromArgb(23, 23, 28);
+            softBanner.Visible = false;
 
             softBannerLabel = new Label();
             softBannerLabel.Dock = DockStyle.Fill;
-            softBannerLabel.Text = "⚫ Black Firefox Theme Active — 100% Ad-Free YouTube & Zero Trackers";
-            softBannerLabel.ForeColor = Color.White;
-            softBannerLabel.Font = new Font("Segoe UI Variable Display", 8.5f, FontStyle.Bold);
+            softBannerLabel.ForeColor = Color.FromArgb(200, 205, 220);
+            softBannerLabel.Font = new Font("Segoe UI Variable Display", 8.5f);
             softBannerLabel.TextAlign = ContentAlignment.MiddleCenter;
 
             softBanner.Controls.Add(softBannerLabel);
@@ -172,12 +167,14 @@ namespace BlackBrowser
             bannerTimer.Interval = 4000;
             bannerTimer.Tick += (s, e) =>
             {
-                softBannerLabel.Text = "⚫ Black Firefox Theme Active — 100% Ad-Free YouTube & Zero Trackers";
+                softBanner.Visible = false;
                 bannerTimer.Stop();
             };
 
             omniboxPanel = new Panel();
-            omniboxPanel.Dock = DockStyle.Fill;
+            omniboxPanel.Dock = DockStyle.None;
+            omniboxPanel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            omniboxPanel.Height = 44;
             omniboxPanel.BackColor = Color.FromArgb(28, 28, 34);
             omniboxPanel.Padding = new Padding(6, 6, 6, 6);
 
@@ -273,9 +270,6 @@ namespace BlackBrowser
             omniboxPanel.Controls.Add(homeBtn);
             omniboxPanel.Controls.Add(omniShell);
 
-            headerContainer.Controls.Add(omniboxPanel);
-            headerContainer.Controls.Add(softBanner);
-
             tabControl = new TabControl();
             tabControl.Dock = DockStyle.Fill;
             tabControl.Padding = new Point(14, 4);
@@ -285,20 +279,19 @@ namespace BlackBrowser
             tabControl.MouseDown += OnTabMouseDown;
             tabControl.SelectedIndexChanged += OnTabChanged;
 
-            this.Controls.Add(headerContainer);
             this.Controls.Add(tabControl);
-            headerContainer.SendToBack();
-            tabControl.BringToFront();
+            this.Controls.Add(omniboxPanel);
+            this.Controls.Add(softBanner);
+            tabControl.SendToBack();
+            omniboxPanel.BringToFront();
+            softBanner.BringToFront();
 
             this.KeyPreview = true;
             this.KeyDown += OnFormKeyDown;
 
             this.Resize += (s, e) =>
             {
-                if (omniShell != null && actionsPanel != null)
-                {
-                    omniShell.Width = Math.Max(200, this.Width - actionsPanel.Width - 170);
-                }
+                PositionOmnibox();
 
                 if (this.WindowState == FormWindowState.Minimized)
                 {
@@ -322,8 +315,34 @@ namespace BlackBrowser
             }
 
             softBannerLabel.Text = msg;
+            softBanner.Visible = true;
             bannerTimer.Stop();
             bannerTimer.Start();
+        }
+
+        private void PositionOmnibox()
+        {
+            if (tabControl == null || omniboxPanel == null) return;
+
+            int tabStripHeight = tabControl.DisplayRectangle.Y;
+            omniboxPanel.Location = new Point(0, tabStripHeight);
+            omniboxPanel.Width = this.ClientSize.Width;
+            omniboxPanel.BringToFront();
+
+            if (omniShell != null && actionsPanel != null)
+            {
+                omniShell.Width = Math.Max(200, omniboxPanel.Width - actionsPanel.Width - 160);
+            }
+        }
+
+        private void SetOmniboxVisible(bool visible)
+        {
+            omniboxPanel.Visible = visible;
+            foreach (TabPage p in tabControl.TabPages)
+            {
+                p.Padding = new Padding(0, visible ? 44 : 0, 0, 0);
+            }
+            PositionOmnibox();
         }
 
         private void ToggleCurrentTabBookmark()
@@ -658,7 +677,6 @@ namespace BlackBrowser
             isDarkMode = dark;
 
             Color bg = dark ? Color.FromArgb(18, 18, 22) : Color.FromArgb(243, 243, 243);
-            Color headerBg = dark ? Color.FromArgb(23, 23, 28) : Color.FromArgb(235, 235, 235);
             Color omniBg = dark ? Color.FromArgb(28, 28, 34) : Color.FromArgb(255, 255, 255);
             Color inputBg = dark ? Color.FromArgb(44, 44, 54) : Color.FromArgb(241, 243, 244);
             Color inputFg = dark ? Color.FromArgb(240, 240, 245) : Color.FromArgb(32, 33, 36);
@@ -669,7 +687,6 @@ namespace BlackBrowser
             Color accentFg = dark ? Color.FromArgb(255, 255, 255) : Color.FromArgb(0, 103, 192);
 
             this.BackColor = bg;
-            headerContainer.BackColor = headerBg;
             omniboxPanel.BackColor = omniBg;
             omniShell.BackColor = inputBg;
             urlBar.BackColor = inputBg;
@@ -784,6 +801,7 @@ namespace BlackBrowser
                 string tabTitle = isPrivate ? "🕵️ Private Tab" : TruncateTitle(title);
                 TabPage page = new TabPage(tabTitle);
                 page.Tag = isPrivate;
+                page.Padding = new Padding(0, 44, 0, 0);
 
                 Color defaultBg = isPrivate
                     ? Color.FromArgb(18, 18, 24)
@@ -800,6 +818,7 @@ namespace BlackBrowser
 
                 tabControl.Invalidate();
                 this.PerformLayout();
+                PositionOmnibox();
 
                 await wv.EnsureCoreWebView2Async(webViewEnv);
 
@@ -924,13 +943,13 @@ namespace BlackBrowser
                     {
                         if (wv.CoreWebView2.ContainsFullScreenElement)
                         {
-                            headerContainer.Visible = false;
+                            SetOmniboxVisible(false);
                             this.FormBorderStyle = FormBorderStyle.None;
                             this.WindowState = FormWindowState.Maximized;
                         }
                         else
                         {
-                            headerContainer.Visible = true;
+                            SetOmniboxVisible(true);
                             this.FormBorderStyle = FormBorderStyle.Sizable;
                             this.WindowState = FormWindowState.Normal;
                         }
@@ -1419,14 +1438,14 @@ namespace BlackBrowser
                 prevBorderStyle = this.FormBorderStyle;
                 this.FormBorderStyle = FormBorderStyle.None;
                 this.WindowState = FormWindowState.Maximized;
-                headerContainer.Visible = false;
+                SetOmniboxVisible(false);
                 isFullscreen = true;
             }
             else
             {
                 this.FormBorderStyle = prevBorderStyle;
                 this.WindowState = prevWindowState;
-                headerContainer.Visible = true;
+                SetOmniboxVisible(true);
                 isFullscreen = false;
             }
         }

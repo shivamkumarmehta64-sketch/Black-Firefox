@@ -17,8 +17,23 @@ if not exist "%CSC%" (
     exit /b 1
 )
 
-echo [1/2] Compiling src\*.cs...
-"%CSC%" /nologo /target:winexe /win32icon:icon.ico /reference:System.IO.Compression.FileSystem.dll /reference:System.IO.Compression.dll /reference:Microsoft.Web.WebView2.Core.dll /reference:Microsoft.Web.WebView2.WinForms.dll /out:Black.exe src\*.cs
+echo [1/3] Building version resource (black.res)...
+"%CSC%" /nologo /out:GenRes.exe GenRes.cs
+if errorlevel 1 (
+    echo [ERROR] GenRes.cs compilation failed.
+    pause
+    exit /b 1
+)
+GenRes.exe icon.ico black.res
+if errorlevel 1 (
+    echo [ERROR] Resource generation failed.
+    pause
+    exit /b 1
+)
+echo [OK] black.res generated (FileDescription = "Black Browser")!
+
+echo [2/3] Compiling src\*.cs...
+"%CSC%" /nologo /target:winexe /win32res:black.res /reference:System.IO.Compression.FileSystem.dll /reference:System.IO.Compression.dll /reference:Microsoft.Web.WebView2.Core.dll /reference:Microsoft.Web.WebView2.WinForms.dll /out:Black.exe src\*.cs
 
 if errorlevel 1 (
     echo [ERROR] Compilation failed. Check error messages above.
@@ -28,8 +43,8 @@ if errorlevel 1 (
 echo [OK] Black.exe compiled successfully!
 echo.
 
-echo [2/2] Creating Desktop shortcut...
-powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $sc = $ws.CreateShortcut([System.IO.Path]::Combine([Environment]::GetFolderPath('Desktop'), 'Black Browser.lnk')); $sc.TargetPath = '%~dp0Black.exe'; $sc.WorkingDirectory = '%~dp0'; $sc.IconLocation = '%~dp0icon.ico,0'; $sc.Description = 'Black Browser v8.5 - Windows 11 Fluent 2 Edition'; $sc.Save()"
+echo [3/3] Creating Desktop shortcut...
+powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $sc = $ws.CreateShortcut([System.IO.Path]::Combine([Environment]::GetFolderPath('Desktop'), 'Black Browser.lnk')); $sc.TargetPath = '%~dp0Black.exe'; $sc.WorkingDirectory = '%~dp0'; $sc.IconLocation = '%~dp0icon.ico,0'; $sc.Description = 'Black Browser v8.9 - Windows 11 Fluent 2 Edition'; $sc.Save()"
 
 echo [OK] Desktop shortcut created!
 echo.

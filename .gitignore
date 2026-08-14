@@ -5,3 +5,11 @@ debug.log
 *.user
 *.suo
 node_modules/
+*.obj
+*.res
+*.log
+GenRes.exe
+set-default*.ps1
+set-default-hash.*
+elevated-run.ps1
+elev.log
