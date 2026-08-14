@@ -1,4 +1,7 @@
 using System;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Text;
 using System.Windows.Forms;
@@ -33,6 +36,54 @@ namespace BlackBrowser
                 return "https://www.google.com/s2/favicons?domain=" + host + "&sz=128";
             }
             catch { return ""; }
+        }
+
+        private static string cachedAppIcon = null;
+
+        private static string GetAppIconDataUri()
+        {
+            if (cachedAppIcon != null) return cachedAppIcon;
+            try
+            {
+                Icon appIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+                if (appIcon == null) return "⚫";
+                using (Bitmap bmp = appIcon.ToBitmap())
+                using (Bitmap canvas = new Bitmap(128, 128, PixelFormat.Format32bppArgb))
+                {
+                    using (Graphics g = Graphics.FromImage(canvas))
+                    {
+                        g.SmoothingMode = SmoothingMode.AntiAlias;
+                        g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                        using (GraphicsPath path = RoundRectPath(0, 0, 128, 128, 28))
+                        {
+                            g.Clear(Color.Transparent);
+                            g.FillPath(new SolidBrush(Color.FromArgb(10, 14, 26)), path);
+                            g.SetClip(path);
+                            g.DrawImage(bmp, new Rectangle(14, 14, 100, 100));
+                            g.ResetClip();
+                        }
+                    }
+                    using (MemoryStream ms = new MemoryStream())
+                    {
+                        canvas.Save(ms, ImageFormat.Png);
+                        cachedAppIcon = "data:image/png;base64," + Convert.ToBase64String(ms.ToArray());
+                        return cachedAppIcon;
+                    }
+                }
+            }
+            catch { return "⚫"; }
+        }
+
+        private static GraphicsPath RoundRectPath(int x, int y, int w, int h, int r)
+        {
+            GraphicsPath path = new GraphicsPath();
+            int d = r * 2;
+            path.AddArc(x, y, d, d, 180, 90);
+            path.AddArc(x + w - d, y, d, d, 270, 90);
+            path.AddArc(x + w - d, y + h - d, d, d, 0, 90);
+            path.AddArc(x, y + h - d, d, d, 90, 90);
+            path.CloseFigure();
+            return path;
         }
 
         public static string GetSpeedDialFilePath(bool isDarkMode)
@@ -132,7 +183,7 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 .ntp-greeting{font-size:16px;font-weight:600;margin-top:9px;color:#c7cede;letter-spacing:-0.2px}
 
 .ntp-logo{display:flex;flex-direction:column;align-items:center;gap:12px;margin-bottom:26px;animation:fadeIn 0.6s ease}
-.ntp-logo-mark{width:74px;height:74px;border-radius:24px;background:linear-gradient(135deg, #0a0e1a 0%, #121a30 100%);border:1.5px solid rgba(0,96,223,0.55);display:flex;align-items:center;justify-content:center;font-size:40px;box-shadow:0 12px 40px rgba(0,96,223,0.35), inset 0 0 30px rgba(0,96,223,0.12);animation:fadeIn 0.6s ease}
+.ntp-logo-mark{width:74px;height:74px;border-radius:24px;object-fit:cover;box-shadow:0 12px 40px rgba(0,96,223,0.35);animation:logoFloat 4s ease-in-out infinite}
 
 .search-container{width:100%;max-width:760px;margin-bottom:44px;animation:fadeIn 0.7s ease}
 .search-box{display:flex;align-items:center;width:100%;height:62px;padding:0 8px 0 26px;border-radius:31px;background:rgba(18,22,36,0.66);border:1.5px solid rgba(0,96,223,0.45);box-shadow:0 10px 40px rgba(0,0,0,0.4);backdrop-filter:blur(26px) saturate(160%);transition:all .25s cubic-bezier(0.4,0,0.2,1)}
@@ -149,7 +200,17 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 
 .dials-heading{width:100%;max-width:960px;text-align:center;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#7f88a6;margin-bottom:20px;animation:fadeIn 0.8s ease}
 .dials-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:16px;width:100%;max-width:960px;animation:fadeIn 0.9s ease}
-.dial{display:flex;flex-direction:column;align-items:center;gap:10px;padding:18px 8px 14px;border-radius:20px;background:rgba(18,22,38,0.5);border:1px solid rgba(0,96,223,0.16);backdrop-filter:blur(22px) saturate(150%);cursor:pointer;transition:all .22s cubic-bezier(0.4,0,0.2,1);text-decoration:none;color:#ffffff;box-shadow:0 4px 18px rgba(0,0,0,0.22)}
+.dial{display:flex;flex-direction:column;align-items:center;gap:10px;padding:18px 8px 14px;border-radius:20px;background:rgba(18,22,38,0.5);border:1px solid rgba(0,96,223,0.16);backdrop-filter:blur(22px) saturate(150%);cursor:pointer;transition:all .22s cubic-bezier(0.4,0,0.2,1);text-decoration:none;color:#ffffff;box-shadow:0 4px 18px rgba(0,0,0,0.22);animation:dialIn .5s cubic-bezier(0.2,0.7,0.3,1) backwards}
+.dial:nth-child(1){animation-delay:.05s}
+.dial:nth-child(2){animation-delay:.1s}
+.dial:nth-child(3){animation-delay:.15s}
+.dial:nth-child(4){animation-delay:.2s}
+.dial:nth-child(5){animation-delay:.25s}
+.dial:nth-child(6){animation-delay:.3s}
+.dial:nth-child(7){animation-delay:.35s}
+.dial:nth-child(8){animation-delay:.4s}
+.dial:nth-child(9){animation-delay:.45s}
+.dial:nth-child(10){animation-delay:.5s}
 .dial:hover{transform:translateY(-6px) scale(1.04);border-color:#0060df;background:rgba(22,28,48,0.62);box-shadow:0 18px 44px rgba(0,96,223,0.35)}
 .dial-icon{width:52px;height:52px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;box-shadow:0 6px 18px rgba(0,0,0,0.3);transition:transform .22s ease;position:relative;overflow:hidden}
 .dial:hover .dial-icon{transform:scale(1.1) rotate(-2deg)}
@@ -170,6 +231,8 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 .footer-note{margin-top:38px;font-size:12px;color:#a6adc8;display:flex;align-items:center;gap:16px;background:rgba(18,22,38,0.42);padding:11px 24px;border-radius:22px;backdrop-filter:blur(16px);border:1px solid rgba(0,96,223,0.16)}
 
 @keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes logoFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes dialIn{from{opacity:0;transform:translateY(18px) scale(0.92)}to{opacity:1;transform:translateY(0) scale(1)}}
 </style>
 </head>
 <body>
@@ -181,7 +244,7 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 </div>
 
 <div class='ntp-logo'>
-  <div class='ntp-logo-mark'>⚫</div>
+  <img class='ntp-logo-mark' src='" + GetAppIconDataUri() + @"' alt='' width='74' height='74'>
 </div>
 
 <form class='search-container' id='homeSearch' onsubmit='return homeSearchSubmit(event)'>

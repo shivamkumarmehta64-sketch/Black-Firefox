@@ -394,8 +394,13 @@ namespace BlackBrowser
 
             if (tabNewBtn != null)
             {
-                int btnW = 32;
-                tabNewBtn.Location = new Point(this.ClientSize.Width - btnW - 8, 3 + (tabStripHeight - 32) / 2);
+                int x = 12;
+                if (tabControl.TabCount > 0)
+                {
+                    Rectangle lastTab = tabControl.GetTabRect(tabControl.TabCount - 1);
+                    x = lastTab.Right + 8;
+                }
+                tabNewBtn.Location = new Point(x, 3 + (tabStripHeight - 32) / 2);
             }
 
             if (omniShell != null && actionsPanel != null)
@@ -697,6 +702,8 @@ namespace BlackBrowser
                     tabControl.SelectedTab.Text = "New Tab";
                 }
             }
+
+            PositionOmnibox();
         }
 
         private void ReopenLastClosedTab()
