@@ -24,6 +24,8 @@ namespace BlackBrowser
         private Button reloadBtn;
         private Button homeBtn;
         private Panel omniShell;
+        private Panel navStrip;
+        private PictureBox faviconBox;
         private TextBox urlBar;
         private Button starBtn;
         private Button shieldBtn;
@@ -174,14 +176,21 @@ namespace BlackBrowser
             omniboxPanel = new Panel();
             omniboxPanel.Dock = DockStyle.None;
             omniboxPanel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-            omniboxPanel.Height = 44;
+            omniboxPanel.Height = 52;
             omniboxPanel.BackColor = Color.FromArgb(28, 28, 34);
-            omniboxPanel.Padding = new Padding(6, 6, 6, 6);
+            omniboxPanel.Padding = new Padding(8, 8, 8, 8);
 
             backBtn = CreateBtn("←", 0);
             fwdBtn = CreateBtn("→", 32);
             reloadBtn = CreateBtn("↻", 64);
             homeBtn = CreateBtn("🏠", 96);
+
+            foreach (Button navB in new[] { backBtn, fwdBtn, reloadBtn, homeBtn })
+            {
+                navB.BackColor = Color.Transparent;
+                navB.FlatAppearance.MouseOverBackColor = Color.FromArgb(64, 64, 76);
+                navB.FlatAppearance.MouseDownBackColor = Color.FromArgb(74, 74, 88);
+            }
 
             backBtn.Click += (s, e) => { WebView2 wv = GetCurrentWebView(); if (wv != null && wv.CanGoBack) wv.GoBack(); };
             fwdBtn.Click += (s, e) => { WebView2 wv = GetCurrentWebView(); if (wv != null && wv.CanGoForward) wv.GoForward(); };
@@ -190,7 +199,7 @@ namespace BlackBrowser
 
             actionsPanel = new FlowLayoutPanel();
             actionsPanel.Dock = DockStyle.Right;
-            actionsPanel.Height = 32;
+            actionsPanel.Height = 36;
             actionsPanel.AutoSize = true;
             actionsPanel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             actionsPanel.FlowDirection = FlowDirection.RightToLeft;
@@ -234,14 +243,41 @@ namespace BlackBrowser
             actionsPanel.Controls.Add(eyeCareBtn);
             actionsPanel.Controls.Add(shieldBtn);
             actionsPanel.Controls.Add(ramBtn);
-            actionsPanel.Controls.Add(starBtn);
 
             omniShell = new Panel();
-            omniShell.Location = new Point(132, 5);
-            omniShell.Height = 32;
+            omniShell.Location = new Point(8, 8);
+            omniShell.Height = 36;
             omniShell.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top;
             omniShell.BackColor = Color.FromArgb(44, 44, 54);
-            omniShell.Padding = new Padding(14, 3, 8, 3);
+            omniShell.Padding = new Padding(6, 3, 8, 3);
+
+            navStrip = new Panel();
+            navStrip.Dock = DockStyle.Left;
+            navStrip.Width = 132;
+            navStrip.BackColor = Color.Transparent;
+            navStrip.Controls.Add(backBtn);
+            navStrip.Controls.Add(fwdBtn);
+            navStrip.Controls.Add(reloadBtn);
+            navStrip.Controls.Add(homeBtn);
+            backBtn.Location = new Point(0, 0);
+            fwdBtn.Location = new Point(32, 0);
+            reloadBtn.Location = new Point(64, 0);
+            homeBtn.Location = new Point(96, 0);
+            backBtn.Width = 28;
+            fwdBtn.Width = 28;
+            reloadBtn.Width = 28;
+            homeBtn.Width = 28;
+            backBtn.Height = 30;
+            fwdBtn.Height = 30;
+            reloadBtn.Height = 30;
+            homeBtn.Height = 30;
+
+            faviconBox = new PictureBox();
+            faviconBox.Dock = DockStyle.Left;
+            faviconBox.Width = 20;
+            faviconBox.SizeMode = PictureBoxSizeMode.Zoom;
+            faviconBox.BackColor = Color.Transparent;
+            faviconBox.Visible = false;
 
             urlBar = new TextBox();
             urlBar.Dock = DockStyle.Fill;
@@ -272,13 +308,17 @@ namespace BlackBrowser
             urlBar.Click += (s, e) => urlBar.SelectAll();
             urlBar.GotFocus += (s, e) => urlBar.SelectAll();
 
+            starBtn = CreateActionBtn("⭐", Color.FromArgb(58, 48, 38), Color.FromArgb(255, 200, 130), 32);
+            starBtn.Dock = DockStyle.Right;
+            starBtn.Height = 30;
+            starBtn.Click += (s, e) => ToggleCurrentTabBookmark();
+
             omniShell.Controls.Add(urlBar);
+            omniShell.Controls.Add(starBtn);
+            omniShell.Controls.Add(faviconBox);
+            omniShell.Controls.Add(navStrip);
 
             omniboxPanel.Controls.Add(actionsPanel);
-            omniboxPanel.Controls.Add(backBtn);
-            omniboxPanel.Controls.Add(fwdBtn);
-            omniboxPanel.Controls.Add(reloadBtn);
-            omniboxPanel.Controls.Add(homeBtn);
             omniboxPanel.Controls.Add(omniShell);
 
             tabControl = new TabControl();
@@ -342,7 +382,7 @@ namespace BlackBrowser
 
             if (omniShell != null && actionsPanel != null)
             {
-                omniShell.Width = Math.Max(200, omniboxPanel.Width - actionsPanel.Width - 160);
+                omniShell.Width = Math.Max(240, omniboxPanel.Width - actionsPanel.Width - 24);
             }
         }
 
@@ -351,7 +391,7 @@ namespace BlackBrowser
             omniboxPanel.Visible = visible;
             foreach (TabPage p in tabControl.TabPages)
             {
-                p.Padding = new Padding(0, visible ? 44 : 0, 0, 0);
+                p.Padding = new Padding(0, visible ? 52 : 0, 0, 0);
             }
             PositionOmnibox();
         }
@@ -1053,6 +1093,19 @@ namespace BlackBrowser
                     }
                 };
 
+                wv.CoreWebView2.FaviconChanged += (s, e) =>
+                {
+                    try
+                    {
+                        string favUri = wv.CoreWebView2.FaviconUri;
+                        if (!string.IsNullOrEmpty(favUri) && favUri.StartsWith("http"))
+                        {
+                            this.BeginInvoke((Action)(() => SetFavicon(favUri)));
+                        }
+                    }
+                    catch { }
+                };
+
                 wv.CoreWebView2.NavigationCompleted += (s, e) =>
                 {
                     if (tabControl.SelectedTab == page)
@@ -1151,6 +1204,12 @@ namespace BlackBrowser
                 starBtn.BackColor = BookmarksManager.IsBookmarked(uriStr)
                     ? Color.FromArgb(254, 235, 180)
                     : Color.FromArgb(254, 247, 224);
+
+                string favUri = wv.CoreWebView2.FaviconUri;
+                if (!string.IsNullOrEmpty(favUri) && favUri.StartsWith("http") && !uriStr.EndsWith("speeddial.html"))
+                    SetFavicon(favUri);
+                else
+                    SetFavicon("");
             }
             else
             {
@@ -1158,6 +1217,35 @@ namespace BlackBrowser
             }
 
             SuspendBackgroundWebViews();
+        }
+
+        private void SetFavicon(string uri)
+        {
+            if (faviconBox == null) return;
+            try
+            {
+                if (string.IsNullOrEmpty(uri))
+                {
+                    faviconBox.Visible = false;
+                    faviconBox.Image = null;
+                    return;
+                }
+
+                System.Net.WebRequest req = System.Net.WebRequest.Create(uri);
+                req.Timeout = 4000;
+                using (System.Net.WebResponse resp = req.GetResponse())
+                using (System.IO.Stream st = resp.GetResponseStream())
+                {
+                    System.Drawing.Image img = System.Drawing.Image.FromStream(st);
+                    faviconBox.Image = img;
+                    faviconBox.Visible = true;
+                }
+            }
+            catch
+            {
+                faviconBox.Visible = false;
+                faviconBox.Image = null;
+            }
         }
 
         private void SuspendBackgroundWebViews()
