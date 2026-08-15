@@ -47,7 +47,7 @@ namespace BlackBrowser
 <html>
 <head>
 <meta charset='utf-8'>
-<title>Local Downloads — Black Browser</title>
+<title>Local Downloads — Black Firefox</title>
 <link href='https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&family=Inter:wght@400;500;600&display=swap' rel='stylesheet'>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}

@@ -1,23 +1,47 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
   <defs>
-    <radialGradient id="g" cx="50%" cy="40%" r="60%">
-      <stop offset="0%" stop-color="#8B0000"/>
-      <stop offset="100%" stop-color="#1a0000"/>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a1e2a"/>
+      <stop offset="100%" stop-color="#040509"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="57%" r="50%">
+      <stop offset="0%" stop-color="#ff7a1a" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#ff7a1a" stop-opacity="0"/>
     </radialGradient>
+    <radialGradient id="fox" cx="50%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#ff9e3c"/>
+      <stop offset="100%" stop-color="#e25c14"/>
+    </radialGradient>
+    <linearGradient id="arc" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff7a1a" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#ff7a1a" stop-opacity="0.45"/>
+    </linearGradient>
   </defs>
-  <circle cx="50" cy="50" r="48" fill="url(#g)" stroke="#ff4444" stroke-width="2"/>
-  <!-- Horns -->
-  <path d="M20 35 L5 8 L28 30Z" fill="#2a0000" stroke="#ff4444" stroke-width="1"/>
-  <path d="M80 35 L95 8 L72 30Z" fill="#2a0000" stroke="#ff4444" stroke-width="1"/>
+
+  <!-- Tile -->
+  <rect x="4" y="4" width="92" height="92" rx="18" fill="url(#tile)" stroke="#4dffffff" stroke-width="0.6"/>
+  <circle cx="50" cy="57" r="30" fill="url(#glow)"/>
+
+  <!-- Orbit arc (fox wrapping a world) -->
+  <path d="M 21 57 A 29 29 0 0 1 79 57" fill="none" stroke="url(#arc)" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Fox head silhouette -->
+  <g fill="url(#fox)" stroke="#ffcd82" stroke-opacity="0.4" stroke-width="0.5" stroke-linejoin="round">
+    <path d="M 34 24 L 24 42 L 37 39 L 50 32 L 63 39 L 76 42 L 66 24
+             L 80 58 L 64 77 L 50 84 L 36 77 L 20 58 Z"/>
+  </g>
+
+  <!-- Dark face mask -->
+  <path d="M 39 39 L 61 39 L 63 64 L 50 79 L 37 64 Z" fill="#2e1002"/>
+
   <!-- Eyes -->
-  <ellipse cx="35" cy="45" rx="8" ry="6" fill="#ff0000"/>
-  <ellipse cx="35" cy="45" rx="3" ry="5" fill="#ff6666"/>
-  <ellipse cx="65" cy="45" rx="8" ry="6" fill="#ff0000"/>
-  <ellipse cx="65" cy="45" rx="3" ry="5" fill="#ff6666"/>
-  <!-- Mouth -->
-  <path d="M30 65 Q50 80 70 65" fill="#2a0000" stroke="#ff4444" stroke-width="1.5"/>
-  <path d="M35 65 L50 72 L65 65" fill="#ff0000" opacity="0.5"/>
-  <!-- Fangs -->
-  <path d="M30 65 L28 72 L35 67Z" fill="#fff" opacity="0.8"/>
-  <path d="M70 65 L72 72 L65 67Z" fill="#fff" opacity="0.8"/>
+  <ellipse cx="41" cy="53" rx="3.4" ry="2.2" fill="#ffd166"/>
+  <ellipse cx="59" cy="53" rx="3.4" ry="2.2" fill="#ffd166"/>
+
+  <!-- Nose -->
+  <path d="M 47.5 77.5 L 52.5 77.5 L 50 81.5 Z" fill="#0c0400"/>
+
+  <!-- Cheek accents -->
+  <path d="M 24 60 A 7 7 0 0 0 30 66" fill="none" stroke="#ffb45a" stroke-opacity="0.65" stroke-width="2" stroke-linecap="round"/>
+  <path d="M 76 60 A 7 7 0 0 1 70 66" fill="none" stroke="#ffb45a" stroke-opacity="0.65" stroke-width="2" stroke-linecap="round"/>
 </svg>

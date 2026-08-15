@@ -32,7 +32,7 @@ namespace BlackBrowser
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "black-webview2", "dark_notes.txt");
 
-            this.Text = "Black Browser — Settings & Dark Notes (Anime Theme)";
+            this.Text = "Black Firefox — Settings & Dark Notes (Anime Theme)";
             this.Width = 640;
             this.Height = 500;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -167,7 +167,7 @@ namespace BlackBrowser
 
             sysInfoLabel.Text =
                 "==========================================================\n" +
-                "               BLACK BROWSER DEVICE DIAGNOSTICS          \n" +
+                "               Black Firefox DEVICE DIAGNOSTICS          \n" +
                 "==========================================================\n\n" +
                 " OS Version          : " + Environment.OSVersion.ToString() + "\n" +
                 " 64-Bit OS           : " + (Environment.Is64BitOperatingSystem ? "Yes (x64)" : "No (x86)") + "\n" +

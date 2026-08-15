@@ -1,0 +1,38 @@
+name: Build and Sign
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Black Firefox
+        shell: cmd
+        run: ci-build.bat
+
+      - name: Upload artifact for SignPath signing
+        uses: actions/upload-artifact@v4
+        with:
+          name: BlackFirefox-unsigned
+          path: Black.exe
+
+      - name: Sign with SignPath.io
+        uses: signpath/sign-action@v1
+        with:
+          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ secrets.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-path: Black.exe
+          output-path: BlackFirefox-signed.exe
+          wait-for-completion: true
+
+      - name: Upload signed binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: BlackFirefox-signed
+          path: BlackFirefox-signed.exe

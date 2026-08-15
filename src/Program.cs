@@ -38,6 +38,9 @@ namespace BlackBrowser
         [DllImport("kernel32.dll")]
         public static extern uint GetCurrentThreadId();
 
+        [DllImport("shell32.dll")]
+        public static extern int SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string AppID);
+
         public static readonly IntPtr HWND_BROADCAST = (IntPtr)0xffff;
         public static readonly uint WM_SHOW_BLACK_BROWSER = RegisterWindowMessage("WM_SHOW_BLACK_BROWSER_9b2d0d52");
 
@@ -80,6 +83,7 @@ namespace BlackBrowser
 
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
+            try { SetCurrentProcessExplicitAppUserModelID("BlackFirefox.Browser"); } catch { }
             Application.Run(new BrowserForm(args));
         }
 

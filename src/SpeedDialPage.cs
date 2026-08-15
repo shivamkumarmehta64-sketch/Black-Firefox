@@ -220,6 +220,8 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 </div>
 
 <div class='footer-note'>
+  <span style='font-weight:700;color:#8ab6ff'>🦊 Black Firefox</span>
+  <span>•</span>
   <span>🔒 3-Layer AdShield</span>
   <span>•</span>
   <span>🕵️ Private Mode</span>

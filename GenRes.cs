@@ -107,8 +107,8 @@ static class GenRes
         // StringTable "040904B0": a String entry per key.
         string[] keys = { "CompanyName", "FileDescription", "FileVersion", "InternalName",
                           "LegalCopyright", "OriginalFilename", "ProductName", "ProductVersion" };
-        string[] vals = { "Black", "Black Browser", "8.9.0.0", "Black",
-                          "Black Browser", "Black.exe", "Black Browser", "8.9.0.0" };
+        string[] vals = { "Black Firefox", "Black Firefox", "9.0.0.0", "BlackFirefox",
+                          "Black Firefox", "Black.exe", "Black Firefox", "9.0.0.0" };
 
         // Build StringFileInfo (wType=1)
         MemoryStream sfi = new MemoryStream();
@@ -176,9 +176,9 @@ static class GenRes
         r.Write(Enc16("VS_VERSION_INFO\0")); Align4(root);
         r.Write((uint)0xFEEF04BD);
         r.Write((uint)0x00010000);
-        r.Write((uint)0x00080009); // FileVersion MS 8.9
+        r.Write((uint)0x00090000); // FileVersion MS 9.0
         r.Write((uint)0x00000000); // FileVersion LS
-        r.Write((uint)0x00080009); // ProductVersion MS
+        r.Write((uint)0x00090000); // ProductVersion MS
         r.Write((uint)0x00000000); // ProductVersion LS
         r.Write((uint)0x3F);       // FileFlagsMask
         r.Write((uint)0);          // FileFlags

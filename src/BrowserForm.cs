@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
+using System.Net;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
@@ -36,6 +37,14 @@ namespace BlackBrowser
         private Button tabNewBtn;
         private Button ramBtn;
 
+        private Panel findPanel;
+        private TextBox findBox;
+        private Button findPrevBtn;
+        private Button findNextBtn;
+        private Button findCloseBtn;
+        private Label findStatus;
+        private WebView2 findWebView;
+
         private ContextMenuStrip mainMenu;
         private ContextMenuStrip tabContextMenu;
         private TabPage rightClickedTab;
@@ -55,10 +64,18 @@ namespace BlackBrowser
         private Stack<Tuple<string, string>> closedTabStack = new Stack<Tuple<string, string>>();
         private string initialStartupUrl = "black://home";
 
+        // PDF viewing: hosts that serve PDFs as application/octet-stream make
+        // WebView2 download instead of display. We download those to a temp
+        // folder and navigate the tab to the local file, so the built-in PDF
+        // viewer renders them. pdfViewerOrigins maps temp path -> original URL.
+        private static readonly string PdfTempDir = Path.Combine(Path.GetTempPath(), "BlackBrowserPdf");
+        private readonly Dictionary<string, string> pdfViewerOrigins = new Dictionary<string, string>();
+
         public BrowserForm(string[] args = null)
         {
             logPath = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "debug.log");
-            Log("=== Black Browser starting (Black Firefox Glassmorphic Edition v8.6) ===");
+            CleanupStalePdfTemp();
+            Log("=== Black Firefox starting (Black Firefox Glassmorphic Edition v9.0) ===");
 
             if (args != null && args.Length > 0)
             {
@@ -66,12 +83,12 @@ namespace BlackBrowser
                 if (firstArg.IndexOf("music.youtube.com", StringComparison.OrdinalIgnoreCase) >= 0 || firstArg.Equals("--ytmusic", StringComparison.OrdinalIgnoreCase))
                 {
                     initialStartupUrl = "https://music.youtube.com";
-                    this.Text = "🎵 YouTube Music Desktop — Black Browser (Ad-Free)";
+                    this.Text = "🎵 YouTube Music Desktop — Black Firefox (Ad-Free)";
                 }
                 else if (firstArg.IndexOf("youtube.com", StringComparison.OrdinalIgnoreCase) >= 0 || firstArg.Equals("--youtube", StringComparison.OrdinalIgnoreCase))
                 {
                     initialStartupUrl = "https://www.youtube.com";
-                    this.Text = "▶ YouTube Desktop — Black Browser (Ad-Free)";
+                    this.Text = "▶ YouTube Desktop — Black Firefox (Ad-Free)";
                 }
                 else if (firstArg.StartsWith("http", StringComparison.OrdinalIgnoreCase) || firstArg.StartsWith("black://", StringComparison.OrdinalIgnoreCase))
                 {
@@ -82,8 +99,8 @@ namespace BlackBrowser
             this.SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
             this.DoubleBuffered = true;
 
-            if (string.IsNullOrEmpty(this.Text) || this.Text == "Black Browser")
-                this.Text = "Black Browser";
+            if (string.IsNullOrEmpty(this.Text) || this.Text == "Black Firefox")
+                this.Text = "Black Firefox";
 
             this.Width = 1280;
             this.Height = 820;
@@ -125,6 +142,9 @@ namespace BlackBrowser
             try { File.AppendAllText(logPath, "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + msg + "\n"); }
             catch { }
         }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern short GetKeyState(int nVirtKey);
 
         private void SetupGCTimer()
         {
@@ -346,6 +366,8 @@ namespace BlackBrowser
             tabNewBtn.BringToFront();
             softBanner.BringToFront();
 
+            BuildFindBar();
+
             this.KeyPreview = true;
             this.KeyDown += OnFormKeyDown;
 
@@ -364,6 +386,107 @@ namespace BlackBrowser
                 }
                 this.PerformLayout();
             };
+        }
+
+        private void BuildFindBar()
+        {
+            findPanel = new Panel();
+            findPanel.Height = 42;
+            findPanel.Dock = DockStyle.Bottom;
+            findPanel.BackColor = Color.FromArgb(32, 33, 36);
+            findPanel.Visible = false;
+
+            findStatus = new Label();
+            findStatus.Text = "";
+            findStatus.ForeColor = Color.FromArgb(154, 160, 166);
+            findStatus.Font = new Font("Segoe UI Variable Display", 9f);
+            findStatus.AutoSize = true;
+            findStatus.Location = new Point(10, 13);
+
+            findBox = new TextBox();
+            findBox.Width = 220;
+            findBox.Location = new Point(90, 8);
+            findBox.BorderStyle = BorderStyle.FixedSingle;
+            findBox.Font = new Font("Segoe UI Variable Display", 10f);
+            findBox.BackColor = Color.FromArgb(18, 18, 22);
+            findBox.ForeColor = Color.White;
+
+            findPrevBtn = new Button();
+            findPrevBtn.Text = "▲";
+            findPrevBtn.Size = new Size(30, 27);
+            findPrevBtn.Location = new Point(318, 7);
+            findPrevBtn.FlatStyle = FlatStyle.Flat;
+            findPrevBtn.FlatAppearance.BorderSize = 0;
+            findPrevBtn.BackColor = Color.FromArgb(18, 18, 22);
+            findPrevBtn.ForeColor = Color.White;
+
+            findNextBtn = new Button();
+            findNextBtn.Text = "▼";
+            findNextBtn.Size = new Size(30, 27);
+            findNextBtn.Location = new Point(352, 7);
+            findNextBtn.FlatStyle = FlatStyle.Flat;
+            findNextBtn.FlatAppearance.BorderSize = 0;
+            findNextBtn.BackColor = Color.FromArgb(18, 18, 22);
+            findNextBtn.ForeColor = Color.White;
+
+            findCloseBtn = new Button();
+            findCloseBtn.Text = "✕";
+            findCloseBtn.Size = new Size(30, 27);
+            findCloseBtn.Location = new Point(396, 7);
+            findCloseBtn.FlatStyle = FlatStyle.Flat;
+            findCloseBtn.FlatAppearance.BorderSize = 0;
+            findCloseBtn.BackColor = Color.FromArgb(18, 18, 22);
+            findCloseBtn.ForeColor = Color.White;
+
+            findBox.TextChanged += (s, e) => RunFind(false);
+            findBox.KeyDown += (s, e) =>
+            {
+                if (e.KeyCode == Keys.Enter && e.Shift) { RunFind(true); e.SuppressKeyPress = true; }
+                else if (e.KeyCode == Keys.Enter) { RunFind(false); e.SuppressKeyPress = true; }
+                else if (e.KeyCode == Keys.Escape) { HideFindBar(); e.SuppressKeyPress = true; }
+            };
+            findPrevBtn.Click += (s, e) => RunFind(true);
+            findNextBtn.Click += (s, e) => RunFind(false);
+            findCloseBtn.Click += (s, e) => HideFindBar();
+
+            findPanel.Controls.Add(findCloseBtn);
+            findPanel.Controls.Add(findNextBtn);
+            findPanel.Controls.Add(findPrevBtn);
+            findPanel.Controls.Add(findBox);
+            findPanel.Controls.Add(findStatus);
+
+            this.Controls.Add(findPanel);
+            findPanel.BringToFront();
+        }
+
+        private void ShowFindBar(WebView2 wv)
+        {
+            findWebView = wv;
+            findPanel.Visible = true;
+            findBox.Focus();
+            if (!string.IsNullOrEmpty(findBox.Text)) RunFind(false);
+        }
+
+        private void HideFindBar()
+        {
+            findPanel.Visible = false;
+            findWebView = null;
+            findBox.Clear();
+            findStatus.Text = "";
+        }
+
+        private void RunFind(bool backwards)
+        {
+            if (findWebView == null || findWebView.CoreWebView2 == null) { findStatus.Text = ""; return; }
+            string q = findBox.Text;
+            if (string.IsNullOrEmpty(q)) { findStatus.Text = ""; return; }
+            string jsQ = q.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "\\r").Replace("\n", "\\n");
+            string js = "window.find(\"" + jsQ + "\", false, " + (backwards ? "true" : "false") + ", true);";
+            findWebView.CoreWebView2.ExecuteScriptAsync(js).ContinueWith(t =>
+            {
+                bool found = t.IsCompleted && t.Result != null && t.Result.Trim() == "true";
+                this.BeginInvoke((Action)(() => findStatus.Text = found ? "Match found" : "No more matches"));
+            });
         }
 
         public void ShowSoftCommunication(string msg)
@@ -782,6 +905,7 @@ namespace BlackBrowser
                     try { wv.CoreWebView2.ShowPrintUI(CoreWebView2PrintDialogKind.Browser); } catch { }
                 }
             });
+            mainMenu.Items.Add("Screenshot", null, (s, e) => TakeScreenshot());
             mainMenu.Items.Add("Developer tools", null, (s, e) =>
             {
                 WebView2 wv = GetCurrentWebView();
@@ -797,6 +921,31 @@ namespace BlackBrowser
             mainMenu.Items.Add(new ToolStripSeparator());
 
             mainMenu.Items.Add("Exit", null, (s, e) => ExitApp());
+        }
+
+        private async void TakeScreenshot()
+        {
+            try
+            {
+                WebView2 wv = GetCurrentWebView();
+                if (wv == null || wv.CoreWebView2 == null) { ShowSoftCommunication("⚠️ No page to capture"); return; }
+                using (SaveFileDialog sfd = new SaveFileDialog())
+                {
+                    sfd.Filter = "PNG image|*.png";
+                    sfd.FileName = "Black-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".png";
+                    if (sfd.ShowDialog(this) != DialogResult.OK) return;
+                    using (FileStream fs = new FileStream(sfd.FileName, FileMode.Create))
+                    {
+                        await wv.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, fs);
+                    }
+                    ShowSoftCommunication("📸 Screenshot saved: " + Path.GetFileName(sfd.FileName));
+                }
+            }
+            catch (Exception ex)
+            {
+                Log("Screenshot failed: " + ex.Message);
+                ShowSoftCommunication("⚠️ Screenshot failed");
+            }
         }
 
         private void AdjustZoom(float delta, bool reset = false)
@@ -943,6 +1092,23 @@ namespace BlackBrowser
             SetEyeCareMode((eyeCareMode + 1) % 3);
         }
 
+        private void CleanupStalePdfTemp()
+        {
+            try
+            {
+                if (!Directory.Exists(PdfTempDir)) return;
+                foreach (string f in Directory.GetFiles(PdfTempDir, "*.pdf"))
+                {
+                    try
+                    {
+                        if (File.GetLastWriteTime(f) < DateTime.Now.AddDays(-1)) File.Delete(f);
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+        }
+
         private async void InitializeBrowserEnv()
         {
             try
@@ -1023,6 +1189,26 @@ namespace BlackBrowser
                     }));
                 };
 
+                try
+                {
+                    var ctrlField = typeof(WebView2).GetField("_coreWebView2Controller", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    var controller = ctrlField.GetValue(wv) as CoreWebView2Controller;
+                    if (controller != null)
+                    {
+                        controller.AcceleratorKeyPressed += (s, e) =>
+                        {
+                            if (e.KeyEventKind == CoreWebView2KeyEventKind.KeyDown &&
+                                (e.VirtualKey & 0xFF) == (uint)Keys.F &&
+                                (GetKeyState(0x11) & 0x8000) != 0)
+                            {
+                                e.Handled = true;
+                                this.BeginInvoke((Action)(() => ShowFindBar(wv)));
+                            }
+                        };
+                    }
+                }
+                catch { }
+
                 wv.CoreWebView2.PermissionRequested += (s, e) =>
                 {
                     if (e.PermissionKind == CoreWebView2PermissionKind.Notifications)
@@ -1080,13 +1266,65 @@ namespace BlackBrowser
                     catch { }
                 };
 
+                // Set by NavigationStarting when the main frame tries to open a
+                // .pdf URL. If that navigation collapses into a download, it means
+                // the server served the PDF as octet-stream — reroute to the viewer.
+                bool pdfNavSeen = false;
+
                 wv.CoreWebView2.DownloadStarting += (s, e) =>
                 {
                     try
                     {
-                        e.Handled = false;
+                        bool wasPdfNav = pdfNavSeen;
+                        pdfNavSeen = false;
+                        string downloadUrl = e.DownloadOperation != null ? (e.DownloadOperation.Uri ?? "") : "";
                         string path = e.ResultFilePath;
                         string name = !string.IsNullOrEmpty(path) ? Path.GetFileName(path) : "Download";
+
+                        bool isPdf = downloadUrl.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)
+                                  || name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
+
+                        // PDF that couldn't be displayed in-tab (octet-stream/unknown
+                        // MIME) → pull it to a temp file and let the native viewer show it.
+                        if (isPdf && wasPdfNav && !string.IsNullOrEmpty(downloadUrl))
+                        {
+                            Log("PDF: rerouting download to viewer: " + downloadUrl);
+                            e.Handled = true;
+                            if (e.DownloadOperation != null) { try { e.DownloadOperation.Cancel(); } catch { } }
+                            ShowSoftCommunication("📄 Opening PDF…");
+                            try
+                            {
+                                string dest = Path.Combine(PdfTempDir, DateTime.Now.Ticks + ".pdf");
+                                Directory.CreateDirectory(PdfTempDir);
+                                pdfViewerOrigins[dest] = downloadUrl;
+                                System.Net.ServicePointManager.SecurityProtocol |= System.Net.SecurityProtocolType.Tls12;
+                                var wc = new WebClient();
+                                wc.DownloadFileCompleted += (ds, de) =>
+                                {
+                                    if (de.Error != null)
+                                    {
+                                        Log("PDF: download failed: " + de.Error.Message);
+                                        ShowSoftCommunication("⚠️ PDF download failed");
+                                        pdfViewerOrigins.Remove(dest);
+                                        return;
+                                    }
+                                    Log("PDF: download ok, navigating to " + dest);
+                                    this.BeginInvoke((Action)(() =>
+                                    {
+                                        try { wv.CoreWebView2.Navigate(dest); } catch (Exception ex2) { Log("PDF: navigate failed: " + ex2.Message); }
+                                    }));
+                                };
+                                wc.DownloadFileAsync(new Uri(downloadUrl), dest);
+                                return;
+                            }
+                            catch (Exception ex)
+                            {
+                                Log("PDF open failed: " + ex.Message);
+                                ShowSoftCommunication("⚠️ PDF open failed");
+                            }
+                        }
+
+                        e.Handled = false;
                         DownloadsManager.AddDownload(name, path ?? "", 0);
                         ShowSoftCommunication("📥 Download Started: " + name);
 
@@ -1127,6 +1365,8 @@ namespace BlackBrowser
 
                 wv.CoreWebView2.NavigationStarting += (s, e) =>
                 {
+                    pdfNavSeen = e.Uri.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
+
                     if (e.Uri.Equals("black://history", StringComparison.OrdinalIgnoreCase) ||
                         e.Uri.Equals("about:history", StringComparison.OrdinalIgnoreCase))
                     {
@@ -1222,7 +1462,16 @@ namespace BlackBrowser
                     if (tabControl.SelectedTab == page)
                     {
                         string uriStr = wv.Source != null ? wv.Source.ToString() : "";
-                        urlBar.Text = (uriStr == "about:blank" || uriStr.EndsWith("speeddial.html")) ? "" : uriStr;
+                        string originalUrl = null;
+                        if (pdfViewerOrigins.TryGetValue(uriStr, out originalUrl))
+                        {
+                            uriStr = originalUrl;
+                            if (tabControl.SelectedTab == page) { urlBar.Text = originalUrl; page.Text = TruncateTitle(Path.GetFileName(new Uri(originalUrl).AbsolutePath) ?? "PDF"); }
+                        }
+                        else
+                        {
+                            urlBar.Text = (uriStr == "about:blank" || uriStr.EndsWith("speeddial.html")) ? "" : uriStr;
+                        }
 
                         string pageName = string.IsNullOrEmpty(wv.CoreWebView2.DocumentTitle) || wv.CoreWebView2.DocumentTitle == "speeddial.html"
                             ? "New Tab" : TruncateTitle(wv.CoreWebView2.DocumentTitle);
@@ -1232,9 +1481,10 @@ namespace BlackBrowser
                         UpdateNavButtons();
                     }
 
-                    if (!isPrivate && wv.Source != null && !wv.Source.ToString().EndsWith("speeddial.html"))
+                    string sourceUri = wv.Source != null ? wv.Source.ToString() : "";
+                    if (!isPrivate && sourceUri.Length > 0 && !sourceUri.EndsWith("speeddial.html") && !pdfViewerOrigins.ContainsKey(sourceUri))
                     {
-                        HistoryManager.AddVisit(wv.CoreWebView2.DocumentTitle, wv.Source.ToString());
+                        HistoryManager.AddVisit(wv.CoreWebView2.DocumentTitle, sourceUri);
                     }
                 };
 
@@ -1243,7 +1493,15 @@ namespace BlackBrowser
                     if (tabControl.SelectedTab == page)
                     {
                         string uriStr = wv.Source != null ? wv.Source.ToString() : "";
-                        urlBar.Text = (uriStr == "about:blank" || uriStr.EndsWith("speeddial.html")) ? "" : uriStr;
+                        string originalUrl;
+                        if (pdfViewerOrigins.TryGetValue(uriStr, out originalUrl))
+                        {
+                            urlBar.Text = originalUrl;
+                        }
+                        else
+                        {
+                            urlBar.Text = (uriStr == "about:blank" || uriStr.EndsWith("speeddial.html")) ? "" : uriStr;
+                        }
                     }
                 };
 
@@ -1305,6 +1563,7 @@ namespace BlackBrowser
 
         private void OnTabChanged(object sender, EventArgs e)
         {
+            HideFindBar();
             WebView2 wv = GetCurrentWebView();
             if (wv != null && wv.CoreWebView2 != null && wv.Source != null)
             {
@@ -1538,11 +1797,11 @@ namespace BlackBrowser
                 {
                     trayIcon = new NotifyIcon();
                     trayIcon.Icon = new Icon(iconPath);
-                    trayIcon.Text = "Black Browser (Black Firefox Glassmorphic)";
+                    trayIcon.Text = "Black Firefox (Glassmorphic Edition)";
                     trayIcon.Visible = true;
 
                     ContextMenuStrip menu = new ContextMenuStrip();
-                    menu.Items.Add("Open Black Browser", null, (s, e) => ShowMainWindow());
+                    menu.Items.Add("Open Black Firefox", null, (s, e) => ShowMainWindow());
                     menu.Items.Add("⚡ Optimize Memory", null, (s, e) => MemoryTrimmer.TrimProcessMemory());
                     menu.Items.Add(new ToolStripSeparator());
                     menu.Items.Add("Exit", null, (s, e) => ExitApp());
@@ -1635,6 +1894,12 @@ namespace BlackBrowser
                 {
                     try { wv.CoreWebView2.ShowPrintUI(CoreWebView2PrintDialogKind.Browser); } catch { }
                 }
+            }
+            else if (e.Control && e.KeyCode == Keys.F)
+            {
+                e.SuppressKeyPress = true;
+                WebView2 wv = GetCurrentWebView();
+                if (wv != null) ShowFindBar(wv);
             }
             else if (e.KeyCode == Keys.F12)
             {
