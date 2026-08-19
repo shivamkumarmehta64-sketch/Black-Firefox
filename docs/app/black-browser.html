@@ -1,123 +1,206 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Black Browser (C#) — 86 KB Native Browser | Shivam's Apps</title>
-<meta name="description" content="Black Browser (C#): an ultra-lightweight native Windows browser at ~86 KB. 3-layer ad blocker, local bookmarks, no Electron. Free and open source.">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://api.github.com https://us.i.posthog.com https://*.posthog.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://api.github.com https://us.i.posthog.com https://*.posthog.com; base-uri 'self'">
-<link rel="stylesheet" href="../assets/tailwind.css">
-<link rel="icon" type="image/png" href="../assets/black.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-<script>
-  !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.async=!0,p.src=s.api_host+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)")},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="capture identify alias people.set people.set_once set_config register register_once unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
-</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Black Firefox — Native Windows Browser | Shivam's Apps</title>
+    <meta name="description"
+        content="Black Firefox: an ultra-lightweight native Windows browser on WebView2. 3-layer ad blocker, local bookmarks, no Electron. Free and open source.">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self' 'unsafe-inline' https://api.github.com https://us.i.posthog.com https://*.posthog.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://api.github.com https://us.i.posthog.com https://*.posthog.com; base-uri 'self'">
+    <link rel="stylesheet" href="../assets/tailwind.css">
+    <link rel="icon" type="image/png" href="../assets/black.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+        rel="stylesheet">
+    <script>
+        !function (t, e) { var o, n, p, r; e.__SV || (window.posthog = e, e._i = [], e.init = function (i, s, a) { function g(t, e) { var o = e.split("."); 2 == o.length && (t = t[o[0]], e = o[1]), t[e] = function () { t.push([e].concat(Array.prototype.slice.call(arguments, 0))) } } (p = t.createElement("script")).type = "text/javascript", p.async = !0, p.src = s.api_host + "/static/array.js", (r = t.getElementsByTagName("script")[0]).parentNode.insertBefore(p, r); var u = e; for (void 0 !== a ? u = e[a] = [] : a = "posthog", u.people = u.people || [], u.toString = function (t) { var e = "posthog"; return "posthog" !== a && (e += "." + a), t || (e += " (stub)") }, u.people.toString = function () { return u.toString(1) + ".people (stub)" }, o = "capture identify alias people.set people.set_once set_config register register_once unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset".split(" "), n = 0; n < o.length; n++)g(u, o[n]); e._i.push([i, s, a]) }, e.__SV = 1) }(document, window.posthog || []);
+    </script>
 </head>
+
 <body class="mesh-bg text-slate-200 min-h-screen antialiased">
 
-<!-- NAV -->
-<header class="sticky top-0 inset-x-0 z-50">
-  <nav class="nav-glass mx-auto mt-4 max-w-6xl rounded-2xl px-4 sm:px-6 py-3 flex items-center justify-between">
-    <a href="/" class="flex items-center gap-2.5">
-      <img src="../assets/black.png" alt="Logo" class="w-8 h-8 rounded-lg">
-      <span class="font-bold text-white tracking-tight">Shivam's <span class="text-grad">Apps</span></span>
-    </a>
-    <nav class="hidden md:flex items-center gap-6 text-sm text-slate-300">
-      <a href="/" class="hover:text-white transition">Home</a>
-      <a href="/apps.html" class="text-white" aria-current="page">Apps</a>
-      <a href="/achievements.html" class="hover:text-white transition">Achievements</a>
-      <a href="/history.html" class="hover:text-white transition">History</a>
-      <a href="/releases.html" class="hover:text-white transition">Releases</a>
-      <a href="/about.html" class="hover:text-white transition">About</a>
-      <a href="/privacy.html" class="hover:text-white transition">FAQ</a>
-      <a href="/birthday.html" class="hover:text-white transition">🎈</a>
-</nav>
-    <a href="https://github.com/shivamkumarmehta64-sketch" target="_blank" rel="noopener"
-       class="text-sm px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 transition">GitHub</a>
-  </nav>
-</header>
+    <!-- NAV -->
+    <header class="sticky top-0 inset-x-0 z-50">
+        <nav class="nav-glass mx-auto mt-4 max-w-6xl rounded-2xl px-4 sm:px-6 py-3 flex items-center justify-between">
+            <a href="/" class="flex items-center gap-2.5">
+                <img src="../assets/black.png" alt="Logo" class="w-8 h-8 rounded-lg">
+                <span class="font-bold text-white tracking-tight">Shivam's <span class="text-grad">Apps</span></span>
+            </a>
+            <nav class="hidden md:flex items-center gap-6 text-sm text-slate-300">
+                <a href="/" class="hover:text-white transition" aria-current="page">Home</a>
+                <a href="/apps.html" class="text-white">Apps</a>
+                <a href="/achievements.html" class="hover:text-white transition">Achievements</a>
+                <a href="/history.html" class="hover:text-white transition">History</a>
+                <a href="/releases.html" class="hover:text-white transition">Releases</a>
+                <a href="/about.html" class="hover:text-white transition">About</a>
+                <a href="/privacy.html" class="hover:text-white transition">FAQ</a>
+                <a href="/birthday.html" class="hover:text-white transition">🎈</a>
+            </nav>
+            <a href="https://github.com/shivamkumarmehta64-sketch" target="_blank" rel="noopener"
+                class="text-sm px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 transition">GitHub</a>
+        </nav>
+    </header>
 
-<!-- HERO -->
-<section data-repo="shivamkumarmehta64-sketch/Black-Firefox" class="relative overflow-hidden pt-16 pb-12 px-4">
-  <div class="blob blob-1" data-parallax="0.18"></div>
-  <div class="blob blob-2" data-parallax="-0.12"></div>
-  <div class="fade-up max-w-4xl mx-auto text-center relative">
-    <img src="../assets/black-browser.png" alt="Black Browser C# logo" class="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl ring-2 ring-indigo-500/40 mx-auto">
-    <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
-      <h1 class="text-5xl sm:text-6xl font-black text-white tracking-tight">Black Browser <span class="text-slate-400 text-2xl sm:text-3xl">(C#)</span></h1>
-      <span class="text-xs font-semibold px-3 py-1 rounded-full bg-white/5 text-slate-300 border border-white/10">NATIVE</span>
-    </div>
-    <p class="mt-4 text-lg text-slate-400 max-w-2xl mx-auto">
-      An ultra-lightweight native Windows browser with a ~86 KB binary. A 3-layer ad blocker and local bookmarks — with none of the Electron bloat. Free, forever.
-    </p>
-    <div class="mt-6 flex flex-wrap items-center justify-center gap-2 text-xs"><span class="stat-chip">⭐ <span data-stat="stars" class="k">…</span></span><span class="stat-chip"><span data-stat="lang">…</span></span><span class="stat-chip">🕐 <span data-stat="updated">…</span></span></div><div class="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
-      <a href="https://github.com/shivamkumarmehta64-sketch/Black-Firefox/releases/download/v0.1.1-portable/Black.Noir-1.0.0-portable.exe"
-         class="w-full sm:w-auto text-center px-8 py-3.5 btn-primary text-base">Download Portable</a>
-      <a href="https://github.com/shivamkumarmehta64-sketch/Black-Firefox/releases/download/v1.0.0/Black.Noir.Setup.1.0.0.exe"
-         class="w-full sm:w-auto text-center px-8 py-3.5 btn-ghost text-base">Download Setup</a>
-      <a href="https://github.com/shivamkumarmehta64-sketch/Black-Firefox" target="_blank" rel="noopener"
-         class="w-full sm:w-auto text-center px-8 py-3.5 btn-ghost text-base">View repo ↗</a>
-    </div>
-  </div>
-</section>
+    <!-- HERO -->
+    <section data-repo="shivamkumarmehta64-sketch/Black-Firefox" class="relative overflow-hidden pt-16 pb-12 px-4">
+        <div class="blob blob-1" data-parallax="0.18"></div>
+        <div class="blob blob-2" data-parallax="-0.12"></div>
+        <div class="fade-up max-w-4xl mx-auto text-center relative">
+            <img src="../assets/black-browser.png" alt="Black Firefox logo"
+                class="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl ring-2 ring-indigo-500/40 mx-auto">
+            <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
+                <h1 class="text-5xl sm:text-6xl font-black text-white tracking-tight">Black <span
+                        class="text-grad">Firefox</span></h1>
+                <span
+                    class="text-xs font-semibold px-3 py-1 rounded-full bg-white/5 text-slate-300 border border-white/10">NATIVE</span>
+            </div>
+            <p class="mt-4 text-lg text-slate-400 max-w-2xl mx-auto">
+                An ultra-lightweight native Windows browser on WebView2. A 3-layer ad blocker, local bookmarks
+                and Edge-style browsing — with none of the Electron bloat. Free, forever.
+            </p>
+            <div class="mt-6 flex flex-wrap items-center justify-center gap-2 text-xs"><span class="stat-chip">⭐ <span
+                        data-stat="stars" class="k">…</span></span><span class="stat-chip"><span
+                        data-stat="lang">…</span></span><span class="stat-chip">🕐 <span
+                        data-stat="updated">…</span></span></div>
+            <div class="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
+                <a href="https://github.com/shivamkumarmehta64-sketch/Black-Firefox/releases/download/v0.1.1-portable/Black.Noir-1.0.0-portable.exe"
+                    class="w-full sm:w-auto text-center px-8 py-3.5 btn-primary text-base">Download Portable</a>
+                <a href="https://github.com/shivamkumarmehta64-sketch/Black-Firefox/releases/download/v1.0.0/Black.Noir.Setup.1.0.0.exe"
+                    class="w-full sm:w-auto text-center px-8 py-3.5 btn-ghost text-base">Download Setup</a>
+                <a href="https://github.com/shivamkumarmehta64-sketch/Black-Firefox" target="_blank" rel="noopener"
+                    class="w-full sm:w-auto text-center px-8 py-3.5 btn-ghost text-base">View repo ↗</a>
+            </div>
+        </div>
+    </section>
 
-<!-- FEATURES -->
-<section class="px-4 pb-20">
-  <div class="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-    <div class="glass rounded-2xl p-6 card-hover reveal">
-      <div class="text-2xl mb-3">🪶</div>
-      <h5 class="font-semibold text-white">~86 KB binary</h5>
-      <p class="mt-1.5 text-sm text-slate-400">Incredibly small — a fraction of the size of Electron-based browsers.</p>
-    </div>
-    <div class="glass rounded-2xl p-6 card-hover reveal">
-      <div class="text-2xl mb-3">🛡️</div>
-      <h5 class="font-semibold text-white">3-layer ad blocker</h5>
-      <p class="mt-1.5 text-sm text-slate-400">Triple-layered filtering to keep pages clean and loading fast.</p>
-    </div>
-    <div class="glass rounded-2xl p-6 card-hover reveal">
-      <div class="text-2xl mb-3">🔖</div>
-      <h5 class="font-semibold text-white">Local bookmarks</h5>
-      <p class="mt-1.5 text-sm text-slate-400">Bookmarks stored locally on your machine — nothing synced to the cloud.</p>
-    </div>
-    <div class="glass rounded-2xl p-6 card-hover reveal">
-      <div class="text-2xl mb-3">⚡</div>
-      <h5 class="font-semibold text-white">Native speed</h5>
-      <p class="mt-1.5 text-sm text-slate-400">Built with C# and Windows APIs for instant startup and low memory use.</p>
-    </div>
-    <div class="glass rounded-2xl p-6 card-hover reveal">
-      <div class="text-2xl mb-3">🪟</div>
-      <h5 class="font-semibold text-white">Windows 10/11</h5>
-      <p class="mt-1.5 text-sm text-slate-400">Runs on modern Windows out of the box, no extra runtime needed.</p>
-    </div>
-    <div class="glass rounded-2xl p-6 card-hover reveal">
-      <div class="text-2xl mb-3">🆓</div>
-      <h5 class="font-semibold text-white">Free & open source</h5>
-      <p class="mt-1.5 text-sm text-slate-400">Fully open source, ad-free and free — yours to use and improve.</p>
-    </div>
-  </div>
-</section>
+    <!-- FEATURES -->
+    <section class="px-4 pb-16">
+        <div class="max-w-4xl mx-auto">
+            <div class="text-center mb-10 reveal">
+                <span
+                    class="text-xs font-semibold px-3 py-1 rounded-full bg-white/5 text-indigo-300 border border-white/10">WHAT
+                    YOU GET</span>
+                <h2 class="mt-3 text-3xl sm:text-4xl font-black text-white tracking-tight">Browsing that feels like
+                    <span class="text-grad">Edge</span></h2>
+                <p class="mt-2 text-slate-400 max-w-xl mx-auto">The familiar workflow you expect from a modern browser,
+                    in a fraction of the footprint.</p>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                <div class="glass rounded-2xl p-6 card-hover reveal">
+                    <div class="text-2xl mb-3">🪶</div>
+                    <h5 class="font-semibold text-white">Ultra-lightweight</h5>
+                    <p class="mt-1.5 text-sm text-slate-400">A fraction of the size and RAM of Electron-based browsers.
+                    </p>
+                </div>
+                <div class="glass rounded-2xl p-6 card-hover reveal">
+                    <div class="text-2xl mb-3">🛡️</div>
+                    <h5 class="font-semibold text-white">3-layer ad blocker</h5>
+                    <p class="mt-1.5 text-sm text-slate-400">Triple-layered filtering to keep pages clean and loading
+                        fast.</p>
+                </div>
+                <div class="glass rounded-2xl p-6 card-hover reveal">
+                    <div class="text-2xl mb-3">🗔</div>
+                    <h5 class="font-semibold text-white">New window (Ctrl+N)</h5>
+                    <p class="mt-1.5 text-sm text-slate-400">Open a separate browser window the way you expect — ideal
+                        for split-screen work.</p>
+                </div>
+                <div class="glass rounded-2xl p-6 card-hover reveal">
+                    <div class="text-2xl mb-3">⭐</div>
+                    <h5 class="font-semibold text-white">Bookmarks bar (Ctrl+Shift+B)</h5>
+                    <p class="mt-1.5 text-sm text-slate-400">A persistent favorites bar right under the address bar —
+                        stored locally, never synced.</p>
+                </div>
+                <div class="glass rounded-2xl p-6 card-hover reveal">
+                    <div class="text-2xl mb-3">📖</div>
+                    <h5 class="font-semibold text-white">Reader mode (Ctrl+Shift+R)</h5>
+                    <p class="mt-1.5 text-sm text-slate-400">Strip ads and clutter for clean, distraction-free article
+                        reading.</p>
+                </div>
+                <div class="glass rounded-2xl p-6 card-hover reveal">
+                    <div class="text-2xl mb-3">🔗</div>
+                    <h5 class="font-semibold text-white">Background tabs</h5>
+                    <p class="mt-1.5 text-sm text-slate-400">Ctrl+click or middle-click a link to open it in a
+                        background tab without losing your place.</p>
+                </div>
+                <div class="glass rounded-2xl p-6 card-hover reveal">
+                    <div class="text-2xl mb-3">⚡</div>
+                    <h5 class="font-semibold text-white">Native speed</h5>
+                    <p class="mt-1.5 text-sm text-slate-400">C# + Windows APIs for instant startup, low memory and
+                        non-blocking favicon loading.</p>
+                </div>
+                <div class="glass rounded-2xl p-6 card-hover reveal">
+                    <div class="text-2xl mb-3">🪟</div>
+                    <h5 class="font-semibold text-white">Windows 11 chrome</h5>
+                    <p class="mt-1.5 text-sm text-slate-400">Edge-sized toolbar, tabs and controls tuned for Windows
+                        10/11 — familiar and easy to click.</p>
+                </div>
+                <div class="glass rounded-2xl p-6 card-hover reveal">
+                    <div class="text-2xl mb-3">🆓</div>
+                    <h5 class="font-semibold text-white">Free & open source</h5>
+                    <p class="mt-1.5 text-sm text-slate-400">Fully open source, ad-free and free — yours to use and
+                        improve.</p>
+                </div>
+            </div>
+        </div>
+    </section>
 
-<!-- FOOTER -->
-<footer class="border-t border-white/10 px-4 py-10">
-  <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
-    <div class="flex items-center gap-2.5">
-      <img src="../assets/black.png" alt="Logo" class="w-7 h-7 rounded-lg">
-      <span class="text-sm text-slate-400">© 2026 Shivam Kumar Mehta. Built with ❤️ — free forever.</span>
-    </div>
-    <div class="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm">
-      <a href="/apps.html" class="text-slate-400 hover:text-white transition">Apps</a>
-      <a href="/about.html" class="text-slate-400 hover:text-white transition">About</a>
-      <a href="/download.html" class="text-slate-400 hover:text-white transition">Install guide</a>
-      <a href="/releases.html" class="text-slate-400 hover:text-white transition">Releases</a>
-      <a href="/privacy.html" class="text-slate-400 hover:text-white transition">Privacy & FAQ</a>
-    </div>
-    <a href="https://github.com/shivamkumarmehta64-sketch" target="_blank" rel="noopener" class="text-sm text-indigo-300 hover:text-indigo-200 transition">GitHub profile ↗</a>
-  </div>
-</footer>
+    <!-- KEYBOARD / WORKFLOW -->
+    <section class="px-4 pb-20">
+        <div class="max-w-4xl mx-auto">
+            <div class="glass rounded-3xl p-8 sm:p-10 reveal">
+                <div class="flex flex-col sm:flex-row items-start justify-between gap-6">
+                    <div>
+                        <span
+                            class="text-xs font-semibold px-3 py-1 rounded-full bg-white/5 text-indigo-300 border border-white/10">WORKFLOW</span>
+                        <h2 class="mt-3 text-2xl sm:text-3xl font-black text-white tracking-tight">Shortcuts built for
+                            work</h2>
+                        <p class="mt-2 text-sm text-slate-400 max-w-md">The everyday shortcuts you already know — no
+                            relearning needed.</p>
+                    </div>
+                    <div class="w-full sm:w-72 shrink-0 space-y-2 text-sm">
+                        <div class="flex items-center justify-between py-1.5 border-b border-white/5"><span
+                                class="text-slate-400">New tab</span><span class="kbd">Ctrl + T</span></div>
+                        <div class="flex items-center justify-between py-1.5 border-b border-white/5"><span
+                                class="text-slate-400">New window</span><span class="kbd">Ctrl + N</span></div>
+                        <div class="flex items-center justify-between py-1.5 border-b border-white/5"><span
+                                class="text-slate-400">Bookmarks bar</span><span class="kbd">Ctrl + Shift + B</span>
+                        </div>
+                        <div class="flex items-center justify-between py-1.5 border-b border-white/5"><span
+                                class="text-slate-400">Reader mode</span><span class="kbd">Ctrl + Shift + R</span></div>
+                        <div class="flex items-center justify-between py-1.5 border-b border-white/5"><span
+                                class="text-slate-400">Find in page</span><span class="kbd">Ctrl + F</span></div>
+                        <div class="flex items-center justify-between py-1.5 border-b border-white/5"><span
+                                class="text-slate-400">Fullscreen</span><span class="kbd">F11</span></div>
+                        <div class="flex items-center justify-between py-1.5"><span class="text-slate-400">Background
+                                tab</span><span class="kbd">Ctrl + Click</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
 
-<script src="../assets/app.js"></script>
+    <!-- FOOTER -->
+    <footer class="border-t border-white/10 px-4 py-10">
+        <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
+            <div class="flex items-center gap-2.5">
+                <img src="../assets/black.png" alt="Logo" class="w-7 h-7 rounded-lg">
+                <span class="text-sm text-slate-400">© 2026 Shivam Kumar Mehta. Built with ❤️ — free forever.</span>
+            </div>
+            <div class="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm">
+                <a href="/apps.html" class="text-slate-400 hover:text-white transition">Apps</a>
+                <a href="/about.html" class="text-slate-400 hover:text-white transition">About</a>
+                <a href="/download.html" class="text-slate-400 hover:text-white transition">Install guide</a>
+                <a href="/releases.html" class="text-slate-400 hover:text-white transition">Releases</a>
+                <a href="/privacy.html" class="text-slate-400 hover:text-white transition">Privacy & FAQ</a>
+            </div>
+            <a href="https://github.com/shivamkumarmehta64-sketch" target="_blank" rel="noopener"
+                class="text-sm text-indigo-300 hover:text-indigo-200 transition">GitHub profile ↗</a>
+        </div>
+    </footer>
+
+    <script src="../assets/app.js"></script>
 </body>
+
 </html>
-
-

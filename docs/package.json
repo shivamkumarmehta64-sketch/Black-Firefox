@@ -1,7 +1,7 @@
 {
   "name": "black-browser-website",
   "version": "1.0.0",
-  "description": "Single-page portfolio hub for all projects: **ytube** & **mtube** (featured working apps), **Black Browser (C#)**, **Electronics Calculator**.",
+  "description": "Single-page portfolio hub for all projects: **ytube** & **mtube** (featured working apps), **Black Firefox**, **Electronics Calculator**.",
   "main": "index.js",
   "scripts": {
     "build:css": "npx tailwindcss -i ./src/input.css -o ./assets/tailwind.css --minify"

@@ -1,6 +1,6 @@
 # Shivam's Apps — Portfolio Website
 
-Single-page portfolio hub for all projects: **ytube** & **mtube** (featured working apps), **Black Browser (C#)**, **Electronics Calculator**.
+Single-page portfolio hub for all projects: **ytube** & **mtube** (featured working apps), **Black Firefox**, **Electronics Calculator**.
 
 - Dark glassmorphism theme (TailwindCSS, pre-built to `assets/tailwind.css`)
 - Mobile responsive
