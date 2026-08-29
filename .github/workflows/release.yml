@@ -1,0 +1,73 @@
+name: Release Build and Publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g. v9.0.0)'
+        required: true
+        default: 'v9.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Build Black Firefox Executable
+        shell: cmd
+        run: ci-build.bat
+
+      - name: Prepare Release Package
+        shell: pwsh
+        run: |
+          $ver = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}" } else { "${{ github.event.inputs.version }}" }
+          if (-not $ver) { $ver = "v9.0.0" }
+          
+          $pkgDir = "BlackFirefox-$ver-Windows-x64"
+          New-Item -ItemType Directory -Force -Path $pkgDir
+          
+          Copy-Item "Black.exe" -Destination "$pkgDir\"
+          Copy-Item "Microsoft.Web.WebView2.Core.dll" -Destination "$pkgDir\"
+          Copy-Item "Microsoft.Web.WebView2.WinForms.dll" -Destination "$pkgDir\"
+          Copy-Item "WebView2Loader.dll" -Destination "$pkgDir\"
+          Copy-Item "icon.ico" -Destination "$pkgDir\"
+          Copy-Item "setup.bat" -Destination "$pkgDir\"
+          Copy-Item "run.bat" -Destination "$pkgDir\"
+          Copy-Item "LICENSE" -Destination "$pkgDir\"
+          Copy-Item "README.md" -Destination "$pkgDir\"
+          
+          New-Item -ItemType Directory -Force -Path "$pkgDir\assets\icons"
+          Copy-Item "assets\icons\*.png" -Destination "$pkgDir\assets\icons\"
+          
+          $zipName = "BlackFirefox-$ver-Windows-x64.zip"
+          Compress-Archive -Path "$pkgDir\*" -DestinationPath $zipName -Force
+          Write-Host "Created distribution zip: $zipName"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          name: Black Firefox ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            Black.exe
+            BlackFirefox-*.zip
+
+      - name: Upload Artifacts (Workflow Dispatch)
+        uses: actions/upload-artifact@v4
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        with:
+          name: BlackFirefox-Distribution
+          path: |
+            Black.exe
+            BlackFirefox-*.zip

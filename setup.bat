@@ -19,9 +19,13 @@ if errorlevel 1 goto :errres
 echo [OK] black.res generated (FileDescription = "Black Firefox")!
 
 echo [2/3] Compiling src\*.cs...
-"%CSC%" /nologo /target:winexe /win32res:black.res /reference:System.IO.Compression.FileSystem.dll /reference:System.IO.Compression.dll /reference:Microsoft.Web.WebView2.Core.dll /reference:Microsoft.Web.WebView2.WinForms.dll /out:Black.exe src\*.cs
+"%CSC%" /nologo /target:winexe /win32res:black.res /reference:System.IO.Compression.FileSystem.dll /reference:System.IO.Compression.dll /reference:Microsoft.Web.WebView2.Core.dll /reference:Microsoft.Web.WebView2.WinForms.dll /reference:System.Security.dll /out:Black.exe src\*.cs
 if errorlevel 1 goto :errcompile
 echo [OK] Black.exe compiled successfully!
+
+if not exist "assets\icons" mkdir "assets\icons"
+xcopy /s /y /q "src\assets\icons\*.png" "assets\icons\" >nul
+echo [OK] UI icons deployed to assets\icons\
 echo.
 
 echo [3/3] Creating Desktop shortcut...

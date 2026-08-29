@@ -12,14 +12,16 @@ namespace BlackBrowser
 
         public static void TrimProcessMemory()
         {
-            try
+            System.Threading.Tasks.Task.Run(() =>
             {
-                GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
-                GC.Collect(2, GCCollectionMode.Optimized, false);
-                GC.WaitForPendingFinalizers();
-                SetProcessWorkingSetSize(Process.GetCurrentProcess().Handle, (IntPtr)(-1), (IntPtr)(-1));
-            }
-            catch { }
+                try
+                {
+                    GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
+                    GC.Collect(2, GCCollectionMode.Optimized, false);
+                    SetProcessWorkingSetSize(Process.GetCurrentProcess().Handle, (IntPtr)(-1), (IntPtr)(-1));
+                }
+                catch { }
+            });
         }
 
         public static long GetWorkingSetMB()

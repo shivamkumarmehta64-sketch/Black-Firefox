@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 using Microsoft.Web.WebView2.WinForms;
 using Microsoft.Web.WebView2.Core;
 
@@ -15,6 +17,19 @@ namespace BlackBrowser
             "/pagead/", "/api/stats/ads", "/ptracking", "/get_midroll_info"
         };
 
+        private static readonly BloomFilter _bloomFilter = new BloomFilter(100, 0.005);
+        private static bool _bloomInitialized = false;
+
+        private static void EnsureBloomFilter()
+        {
+            if (_bloomInitialized) return;
+            foreach (string d in AdDomains)
+            {
+                _bloomFilter.Add(d.Trim('/'));
+            }
+            _bloomInitialized = true;
+        }
+
         private static readonly string[] AllowedStreamDomains = new string[]
         {
             "googlevideo.com", "ytimg.com", "netflix.com",
@@ -26,6 +41,9 @@ namespace BlackBrowser
             (function() {
                 if (window.__blackAdShieldInjected) return;
                 window.__blackAdShieldInjected = true;
+
+                // Set to false by the host when the user disables AdShield for this site.
+                function shieldActive() { return window.__blackShieldEnabled !== false; }
 
                 // Layer 1: Hide all banner, inline, feed & player ad elements instantly
                 function injectCSS() {
@@ -81,6 +99,7 @@ namespace BlackBrowser
                     JSON.parse = function(t, r) {
                         try {
                             const obj = origParse.call(this, t, r);
+                            if (window.__blackShieldEnabled === false) return obj;
                             if (obj && typeof obj === 'object') stripAds(obj);
                             return obj;
                         } catch(e) {
@@ -93,6 +112,7 @@ namespace BlackBrowser
                         window.fetch = function(i, init) {
                             return origFetch.apply(this, arguments).then(function(r) {
                                 const url = typeof i === 'string' ? i : (i && i.url ? i.url : '');
+                                if (window.__blackShieldEnabled === false) return r;
                                 if (url.includes('youtubei.googleapis.com') || url.includes('/youtubei/v1/')) {
                                     return r.clone().json().then(function(d) {
                                         stripAds(d);
@@ -113,6 +133,11 @@ namespace BlackBrowser
 
                 setInterval(function() {
                     try {
+                        if (!shieldActive()) {
+                            var cssEl = document.getElementById('black-adshield-css');
+                            if (cssEl) cssEl.remove();
+                            return;
+                        }
                         injectCSS();
                         var skipBtn = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button, .ytp-ad-skip-button-slot, .ytp-ad-skip-button-container button, .ytp-ad-text.ytp-ad-skip-button-text');
                         if (skipBtn) {
@@ -136,14 +161,36 @@ namespace BlackBrowser
             })();
         ";
 
+        public static string Script { get { return GlobalAdShieldScript; } }
+
         public static async void AttachAdShield(WebView2 wv, Action onAdBlocked)
         {
             if (wv == null || wv.CoreWebView2 == null) return;
 
+            string currentHost = "";
+
+            wv.CoreWebView2.SourceChanged += (s, e) =>
+            {
+                if (wv.Source != null) currentHost = AdShieldState.GetHost(wv.Source.ToString());
+            };
+
             // Network Layer Filtering
+            EnsureBloomFilter();
             wv.CoreWebView2.WebResourceRequested += (sender, args) =>
             {
                 string uri = args.Request.Uri.ToLower();
+
+                // Never interfere with the top-level document (main frame)
+                // navigation or its redirect chain. Streaming/mirror sites
+                // frequently bounce through ad-looking URLs (googlesyndication,
+                // /pagead/, /ptracking, ...) before landing on the real page;
+                // replacing those responses with an empty 200 breaks the redirect.
+                if (args.ResourceContext == CoreWebView2WebResourceContext.Document)
+                    return;
+
+                // Per-site toggle: skip blocking when the user disabled AdShield for this host.
+                if (!AdShieldState.IsEnabled(currentHost))
+                    return;
 
                 // Allow media byte transfer from media CDNs
                 foreach (string streamDomain in AllowedStreamDomains)
@@ -182,10 +229,75 @@ namespace BlackBrowser
             {
                 try
                 {
-                    await wv.CoreWebView2.ExecuteScriptAsync(GlobalAdShieldScript);
+                    bool enabled = AdShieldState.IsEnabled(currentHost);
+                    await wv.CoreWebView2.ExecuteScriptAsync(
+                        "window.__blackShieldEnabled = " + (enabled ? "true" : "false") + ";");
+                    if (enabled)
+                        await wv.CoreWebView2.ExecuteScriptAsync(GlobalAdShieldScript);
                 }
                 catch { }
             };
+        }
+    }
+
+    public static class AdShieldState
+    {
+        private static readonly HashSet<string> DisabledSites = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private static readonly string FilePath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "black-webview2", "shield_sites.txt");
+
+        static AdShieldState()
+        {
+            try
+            {
+                if (File.Exists(FilePath))
+                    foreach (string line in File.ReadAllLines(FilePath))
+                        if (!string.IsNullOrWhiteSpace(line))
+                            DisabledSites.Add(line.Trim());
+            }
+            catch { }
+        }
+
+        public static bool IsEnabled(string host)
+        {
+            return string.IsNullOrEmpty(host) || !DisabledSites.Contains(host);
+        }
+
+        public static bool Toggle(string host)
+        {
+            if (string.IsNullOrEmpty(host)) return true;
+            if (DisabledSites.Remove(host))
+            {
+                Save();
+                return true;
+            }
+            DisabledSites.Add(host);
+            Save();
+            return false;
+        }
+
+        public static string GetHost(string uri)
+        {
+            if (string.IsNullOrEmpty(uri)) return "";
+            try
+            {
+                string h = new Uri(uri).Host.ToLowerInvariant();
+                if (string.IsNullOrEmpty(h)) return "";
+                return h.StartsWith("www.") ? h.Substring(4) : h;
+            }
+            catch { return ""; }
+        }
+
+        private static void Save()
+        {
+            try
+            {
+                string dir = Path.GetDirectoryName(FilePath);
+                if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                File.WriteAllLines(FilePath, DisabledSites);
+            }
+            catch { }
         }
     }
 }

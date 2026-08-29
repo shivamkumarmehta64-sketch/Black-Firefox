@@ -41,6 +41,9 @@ namespace BlackBrowser
         [DllImport("shell32.dll")]
         public static extern int SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string AppID);
 
+        [DllImport("user32.dll")]
+        public static extern bool SetProcessDpiAwarenessContext(IntPtr value);
+
         public static readonly IntPtr HWND_BROADCAST = (IntPtr)0xffff;
         public static readonly uint WM_SHOW_BLACK_BROWSER = RegisterWindowMessage("WM_SHOW_BLACK_BROWSER_9b2d0d52");
 
@@ -51,7 +54,26 @@ namespace BlackBrowser
             AppDomain.CurrentDomain.UnhandledException += (s, e) => LogUnhandledException(e.ExceptionObject as Exception);
 
             bool createdNew;
-            mutex = new Mutex(true, "Black_SingleInstance_Mutex_9b2d0d52", out createdNew);
+            bool forceNewWindow = false;
+            foreach (string a in args)
+            {
+                if (a == "--newwindow") { forceNewWindow = true; break; }
+            }
+            if (!forceNewWindow)
+            {
+                try
+                {
+                    mutex = new Mutex(true, "Black_SingleInstance_Mutex_9b2d0d52", out createdNew);
+                }
+                catch
+                {
+                    createdNew = true;
+                }
+            }
+            else
+            {
+                createdNew = true;
+            }
 
             if (!createdNew)
             {
@@ -71,10 +93,6 @@ namespace BlackBrowser
                             restored = true;
                             break;
                         }
-                        else
-                        {
-                            try { process.Kill(); } catch { }
-                        }
                     }
                 }
 
@@ -84,7 +102,23 @@ namespace BlackBrowser
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             try { SetCurrentProcessExplicitAppUserModelID("BlackFirefox.Browser"); } catch { }
-            Application.Run(new BrowserForm(args));
+
+            SplashForm splash = null;
+            try
+            {
+                splash = new SplashForm();
+                splash.Show();
+                splash.Update();
+            }
+            catch { }
+
+            BrowserForm main = new BrowserForm(args);
+            main.Shown += (s, e) =>
+            {
+                try { if (splash != null && !splash.IsDisposed) splash.BeginClose(); } catch { }
+            };
+
+            Application.Run(main);
         }
 
         public static void ForceForegroundWindow(IntPtr hWnd)

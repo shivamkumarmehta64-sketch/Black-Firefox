@@ -88,102 +88,145 @@ class MakeIcon
 
             float tilePad = 24;
             RectangleF tile = new RectangleF(tilePad, tilePad, MASTER - tilePad * 2, MASTER - tilePad * 2);
-            GraphicsPath tilePath = RoundedRect(tile, 96);
+            GraphicsPath tilePath = RoundedRect(tile, 108);
 
-            // Tile background: charcoal, clamped so it stays dark
+            // 1. Sleek Obsidian Glass Backplate with subtle blue-purple cyber sheen
             using (LinearGradientBrush bg = new LinearGradientBrush(tile,
-                Color.FromArgb(26, 30, 42), Color.FromArgb(4, 5, 9), 90f))
+                Color.FromArgb(28, 30, 44), Color.FromArgb(8, 10, 18), 45f))
             {
                 g.FillPath(bg, tilePath);
             }
 
-            // Border
-            using (Pen border = new Pen(Color.FromArgb(70, 255, 255, 255), 3))
-            { border.LineJoin = LineJoin.Round; g.DrawPath(border, tilePath); }
+            // Outer Neon Rim Accent
+            using (Pen rimPen = new Pen(Color.FromArgb(100, 255, 110, 20), 3.5f))
+            {
+                rimPen.LineJoin = LineJoin.Round;
+                g.DrawPath(rimPen, tilePath);
+            }
 
-            float cx = 256, cy = 292;
+            float cx = 256, cy = 268;
 
-            // Ember glow behind fox (no tiling possible on PathGradient)
+            // 2. Cosmic / Cyber Fire Radial Glow
             using (GraphicsPath glowPath = new GraphicsPath())
             {
-                glowPath.AddEllipse(cx - 150, cy - 150, 300, 300);
-                PathGradientBrush glow = new PathGradientBrush(glowPath);
-                glow.CenterColor = Color.FromArgb(150, 255, 122, 26);
-                glow.SurroundColors = new Color[] { Color.FromArgb(0, 255, 122, 26) };
-                g.FillPath(glow, glowPath);
-                glow.Dispose();
+                glowPath.AddEllipse(cx - 180, cy - 180, 360, 360);
+                using (PathGradientBrush glow = new PathGradientBrush(glowPath))
+                {
+                    glow.CenterColor = Color.FromArgb(160, 255, 95, 0);
+                    glow.SurroundColors = new Color[] { Color.FromArgb(0, 160, 30, 240) };
+                    g.FillPath(glow, glowPath);
+                }
             }
 
-            // Orbit arc (fox wrapping a world) behind lower half
-            using (Pen arc = new Pen(Color.FromArgb(110, 255, 122, 26), 16))
+            // 3. Encircling Cyber Flame Tail (Firefox Orbit)
+            using (Pen fireTail = new Pen(Color.FromArgb(230, 255, 130, 20), 28f))
             {
-                arc.LineJoin = LineJoin.Round;
-                arc.StartCap = LineCap.Round; arc.EndCap = LineCap.Round;
-                g.DrawArc(arc, cx - 138, cy - 138, 276, 276, 150, 240);
+                fireTail.StartCap = LineCap.Round;
+                fireTail.EndCap = LineCap.Round;
+                g.DrawArc(fireTail, cx - 142, cy - 142, 284, 284, 135, 260);
             }
 
-            // Fox head silhouette (ember gradient, clamped)
-            PointF[] fox = new PointF[] {
-                new PointF(178, 132),  // left ear tip
-                new PointF(132, 228),  // left ear outer base
-                new PointF(196, 210),  // left ear inner base
-                new PointF(256, 176),  // forehead dip
-                new PointF(316, 210),  // right ear inner base
-                new PointF(380, 228),  // right ear outer base
-                new PointF(334, 132),  // right ear tip
-                new PointF(408, 306),  // right cheek
-                new PointF(330, 392),  // right jaw
-                new PointF(256, 430),  // chin
-                new PointF(182, 392),  // left jaw
-                new PointF(104, 306)   // left cheek
+            using (Pen innerFlame = new Pen(Color.FromArgb(255, 255, 210, 70), 12f))
+            {
+                innerFlame.StartCap = LineCap.Round;
+                innerFlame.EndCap = LineCap.Round;
+                g.DrawArc(innerFlame, cx - 138, cy - 138, 276, 276, 150, 220);
+            }
+
+            // 4. Dark Cyber World Orb
+            RectangleF orbRect = new RectangleF(cx - 110, cy - 110, 220, 220);
+            using (LinearGradientBrush orbBg = new LinearGradientBrush(orbRect,
+                Color.FromArgb(32, 22, 54), Color.FromArgb(12, 10, 22), 90f))
+            {
+                g.FillEllipse(orbBg, orbRect);
+            }
+            using (Pen orbBorder = new Pen(Color.FromArgb(120, 130, 80, 255), 2f))
+            {
+                g.DrawEllipse(orbBorder, orbRect);
+            }
+
+            // 5. Stylized Obsidian Fox Face Geometry
+            PointF[] foxEarsAndCheeks = new PointF[] {
+                new PointF(175, 120),  // Left ear tip
+                new PointF(140, 210),  // Left ear outer
+                new PointF(195, 195),  // Left ear notch
+                new PointF(256, 160),  // Forehead flame crest
+                new PointF(317, 195),  // Right ear notch
+                new PointF(372, 210),  // Right ear outer
+                new PointF(337, 120),  // Right ear tip
+                new PointF(395, 285),  // Right flame cheek
+                new PointF(325, 375),  // Right jaw
+                new PointF(256, 420),  // Chin tip
+                new PointF(187, 375),  // Left jaw
+                new PointF(117, 285)   // Left flame cheek
             };
 
             using (GraphicsPath foxPath = new GraphicsPath())
             {
-                foxPath.AddPolygon(fox);
-                PathGradientBrush fb = new PathGradientBrush(foxPath);
-                fb.CenterColor = Color.FromArgb(255, 255, 158, 60);
-                fb.CenterPoint = new PointF(256, 256);
-                fb.SurroundColors = new Color[] { Color.FromArgb(255, 226, 92, 20) };
-                g.FillPath(fb, foxPath);
-                fb.Dispose();
-                g.DrawPath(new Pen(Color.FromArgb(70, 255, 205, 130), 3) { LineJoin = LineJoin.Round }, foxPath);
+                foxPath.AddPolygon(foxEarsAndCheeks);
+                using (LinearGradientBrush foxBrush = new LinearGradientBrush(
+                    new RectangleF(117, 120, 278, 300),
+                    Color.FromArgb(255, 255, 140, 30),
+                    Color.FromArgb(255, 210, 50, 10),
+                    60f))
+                {
+                    g.FillPath(foxBrush, foxPath);
+                }
+
+                using (Pen foxOutline = new Pen(Color.FromArgb(255, 255, 220, 140), 3f) { LineJoin = LineJoin.Round })
+                {
+                    g.DrawPath(foxOutline, foxPath);
+                }
             }
 
-            // Dark inner face mask (fox markings) - narrower so ember cheeks show
-            PointF[] mask = new PointF[] {
-                new PointF(210, 212),
-                new PointF(302, 212),
-                new PointF(322, 330),
-                new PointF(256, 402),
-                new PointF(190, 330)
+            // 6. Black Obsidian Fox Inner Mask
+            PointF[] obsidianMask = new PointF[] {
+                new PointF(212, 195),
+                new PointF(300, 195),
+                new PointF(318, 305),
+                new PointF(256, 385),
+                new PointF(194, 305)
             };
             using (GraphicsPath maskPath = new GraphicsPath())
             {
-                maskPath.AddPolygon(mask);
-                g.FillPath(new SolidBrush(Color.FromArgb(255, 46, 16, 2)), maskPath);
+                maskPath.AddPolygon(obsidianMask);
+                using (LinearGradientBrush maskBrush = new LinearGradientBrush(
+                    new RectangleF(194, 195, 124, 190),
+                    Color.FromArgb(255, 20, 16, 28),
+                    Color.FromArgb(255, 8, 6, 12),
+                    90f))
+                {
+                    g.FillPath(maskBrush, maskPath);
+                }
             }
 
-            // Eye glints
-            using (SolidBrush eye = new SolidBrush(Color.FromArgb(255, 255, 209, 102)))
+            // 7. Piercing Cyber-Gold Eyes
+            using (SolidBrush eyeGlow = new SolidBrush(Color.FromArgb(255, 255, 220, 80)))
             {
-                g.FillEllipse(eye, 210, 264, 34, 22);
-                g.FillEllipse(eye, 268, 264, 34, 22);
+                g.FillEllipse(eyeGlow, 212, 250, 32, 20);
+                g.FillEllipse(eyeGlow, 268, 250, 32, 20);
+            }
+            using (SolidBrush pupil = new SolidBrush(Color.FromArgb(255, 18, 12, 8)))
+            {
+                g.FillEllipse(pupil, 222, 252, 12, 16);
+                g.FillEllipse(pupil, 278, 252, 12, 16);
             }
 
-            // Nose
+            // 8. Nose Tip
             using (GraphicsPath nose = new GraphicsPath())
             {
-                nose.AddPolygon(new PointF[] { new PointF(242, 396), new PointF(270, 396), new PointF(256, 418) });
-                g.FillPath(new SolidBrush(Color.FromArgb(255, 12, 4, 0)), nose);
+                nose.AddPolygon(new PointF[] { new PointF(244, 375), new PointF(268, 375), new PointF(256, 396) });
+                g.FillPath(new SolidBrush(Color.FromArgb(255, 255, 160, 40)), nose);
             }
 
-            // Ember cheek accents
-            using (Pen cheek = new Pen(Color.FromArgb(170, 255, 180, 90), 10))
+            // 9. Cyber Embers Accents
+            using (Pen spark = new Pen(Color.FromArgb(200, 255, 240, 160), 6f))
             {
-                cheek.StartCap = LineCap.Round; cheek.EndCap = LineCap.Round;
-                g.DrawArc(cheek, 120, 300, 70, 70, 90, 130);
-                g.DrawArc(cheek, 322, 300, 70, 70, -40, 130);
+                spark.StartCap = LineCap.Round; spark.EndCap = LineCap.Round;
+                g.DrawLine(spark, 100, 190, 106, 190);
+                g.DrawLine(spark, 400, 180, 408, 180);
+                g.DrawLine(spark, 380, 360, 388, 360);
+                g.DrawLine(spark, 130, 370, 136, 370);
             }
         }
         return bmp;
