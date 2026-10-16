@@ -1,0 +1,19 @@
+{
+  "name": "C# (editing only) - Black-Firefox",
+  "image": "mcr.microsoft.com/devcontainers/dotnet:6",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-dotnettools.csharp",
+        "eamodio.gitlens",
+        "editorconfig.editorconfig"
+      ]
+    }
+  },
+  "postCreateCommand": "dotnet restore || true",
+  "remoteUser": "vscode",
+  "settings": {
+    "omnisharp.useModernNet": true
+  },
+  "shutdownAction": "stopContainer"
+}
