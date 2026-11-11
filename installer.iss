@@ -2,7 +2,7 @@
 ; Compiles cleanly for per-user installation (zero UAC prompt by default, optional admin override).
 
 #ifndef MyAppVersion
-  #define MyAppVersion "9.0.0"
+  #define MyAppVersion "9.0.1"
 #endif
 
 #ifndef MySetupBaseName

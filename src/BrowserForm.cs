@@ -271,7 +271,7 @@ namespace BlackBrowser
         {
             logPath = Program.GetLogFilePath();
             CleanupStalePdfTemp();
-            Log("=== Black Firefox starting (Black Firefox Glassmorphic Edition v9.0) ===");
+            Log("=== Black Firefox starting (Black Firefox Glassmorphic Edition v9.0.1) ===");
 
             string home = string.IsNullOrWhiteSpace(SettingsStore.HomePage) ? "black://home" : SettingsStore.HomePage;
             initialStartupUrl = home;

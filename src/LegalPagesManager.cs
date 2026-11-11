@@ -98,7 +98,7 @@ namespace BlackBrowser
             string body =
 "<div class='page-title'>&#x1F98A; About Black Firefox</div>\n" +
 "<div class='page-subtitle'>An ultra-minimal, privacy-focused desktop browser for Windows.</div>\n" +
-"<div class='badge'>VERSION 9.0.0 — GLASSMORPHIC FIREFOX EDITION</div>\n" +
+"<div class='badge'>VERSION 9.0.1 — GLASSMORPHIC FIREFOX EDITION</div>\n" +
 "<h2>Architecture &amp; Tech Stack</h2>\n" +
 "<p>Black Firefox is built with native <strong>C# .NET 4.8</strong> and Microsoft <strong>WebView2 (Chromium engine)</strong>. It offers full hardware acceleration, low RAM consumption (~35-50 MB background footprint), and a custom Firefox Proton-inspired glassmorphic UI.</p>\n" +
 "<h2>Core Pillars</h2>\n" +

@@ -30,7 +30,7 @@ namespace BlackBrowser
 
     public static class UpdateManager
     {
-        public const string CurrentVersion = "v9.0.0";
+        public const string CurrentVersion = "v9.0.1";
         public const string GitHubRepo = "shivamkumarmehta64-sketch/Black-Firefox";
         private static readonly string ApiUrl = "https://api.github.com/repos/" + GitHubRepo + "/releases/latest";
 

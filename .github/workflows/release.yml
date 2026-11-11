@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version tag (e.g. v9.0.0)'
+        description: 'Version tag (e.g. v9.0.1)'
         required: true
-        default: 'v9.0.0'
+        default: 'v9.0.1'
 
 permissions:
   contents: write
@@ -81,7 +81,7 @@ jobs:
         shell: pwsh
         run: |
           $ver = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}" } else { "${{ github.event.inputs.version }}" }
-          if (-not $ver) { $ver = "v9.0.0" }
+          if (-not $ver) { $ver = "v9.0.1" }
           $appVer = $ver.TrimStart('v', 'V')
 
           $pkgDir = "BlackFirefox-$ver-Windows-x64"

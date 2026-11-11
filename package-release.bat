@@ -15,7 +15,7 @@ if errorlevel 1 (
 )
 
 set "VERSION=%~1"
-if "%VERSION%"=="" set "VERSION=v9.0.0"
+if "%VERSION%"=="" set "VERSION=v9.0.1"
 set "APP_VER=%VERSION:v=%"
 set "DIST_DIR=dist\BlackFirefox-%VERSION%-Windows-x64"
 set "ZIP_FILE=dist\BlackFirefox-%VERSION%-Windows-x64.zip"
