@@ -29,12 +29,17 @@ It delivers a sleek dark glassmorphic UI, a built-in 3-layer AdShield ad blocker
 
 ## 📥 Download & Installation
 
-### Option 1: Download from GitHub Releases (Recommended)
-1. Download the latest **`BlackFirefox-v9.0.0-Windows-x64.zip`** from [GitHub Releases](https://github.com/shivamkumarmehta64-sketch/Black-Firefox/releases).
-2. Extract the archive anywhere on your PC.
-3. Run **`Black.exe`** (or execute `setup.bat` to create a Desktop shortcut).
+### Option 1: Windows Installer (Recommended for Most Users)
+1. Download **`BlackFirefox-v9.0.0-Windows-x64-Setup.exe`** from [GitHub Releases](https://github.com/shivamkumarmehta64-sketch/Black-Firefox/releases).
+2. Run the installer (per-user by default — no admin UAC required). It creates Start Menu & Desktop shortcuts, adds an Add/Remove Programs uninstaller, and automatically checks for the Microsoft WebView2 Runtime.
 
-### Option 2: Build from Source
+### Option 2: Portable ZIP Release
+1. Download **`BlackFirefox-v9.0.0-Windows-x64.zip`** from [GitHub Releases](https://github.com/shivamkumarmehta64-sketch/Black-Firefox/releases).
+2. Extract the archive anywhere on your PC.
+3. Run **`Black.exe`** directly, or run **`setup.bat`** to verify WebView2 and create Desktop & Start Menu shortcuts.
+4. Verify package integrity anytime using **`SHA256SUMS.txt`** from the release assets (`certutil -hashfile BlackFirefox-v9.0.0-Windows-x64-Setup.exe SHA256`).
+
+### Option 3: Build from Source
 No Visual Studio or MSBuild installation is required! Built using the native Windows .NET 4.8 compiler:
 
 ```cmd
@@ -42,16 +47,16 @@ No Visual Studio or MSBuild installation is required! Built using the native Win
 git clone https://github.com/shivamkumarmehta64-sketch/Black-Firefox.git
 cd Black-Firefox
 
-# Build and run
+# Build (x64) and run
 ci-build.bat
 Black.exe
 ```
 
-### Option 3: Package Distribution ZIP Locally
+### Option 4: Package Distribution Locally
 ```cmd
 package-release.bat
 ```
-Generates a ready-to-distribute `dist\BlackFirefox-v9.0.0-Windows-x64.zip` package.
+Generates `dist\BlackFirefox-v9.0.0-Windows-x64.zip`, `dist\SHA256SUMS.txt`, and (if Inno Setup 6 is installed) `dist\BlackFirefox-v9.0.0-Windows-x64-Setup.exe`.
 
 ---
 

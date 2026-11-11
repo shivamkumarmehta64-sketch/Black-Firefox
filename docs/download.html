@@ -50,7 +50,20 @@
 
 <!-- APPS LIST -->
 <section class="px-4 pb-12">
-  <div class="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-5">
+  <div class="max-w-5xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-5">
+    <div class="glass rounded-2xl p-6 card-hover reveal">
+      <div class="flex items-center gap-3">
+        <img src="assets/black-browser.png" alt="Black Firefox logo" class="w-12 h-12 rounded-xl ring-1 ring-white/10">
+        <div>
+          <h4 class="font-bold text-white">Black Firefox</h4>
+          <p class="text-xs text-slate-400">Native Browser · Windows x64</p>
+        </div>
+      </div>
+      <a data-download="shivamkumarmehta64-sketch/Black-Firefox" data-exts="setup.exe,.zip" href="https://github.com/shivamkumarmehta64-sketch/Black-Firefox/releases" target="_blank" rel="noopener"
+         class="mt-4 w-full text-center px-5 py-2.5 btn-primary">⬇️ Download Setup</a>
+      <a data-download="shivamkumarmehta64-sketch/Black-Firefox" data-exts=".zip" href="https://github.com/shivamkumarmehta64-sketch/Black-Firefox/releases" target="_blank" rel="noopener"
+         class="mt-2 block text-center text-xs text-cyan-300 hover:text-white transition">Or download Portable (.zip)</a>
+    </div>
     <div class="glass rounded-2xl p-6 card-hover reveal">
       <div class="flex items-center gap-3">
         <img src="assets/mtube.png" alt="mtube logo" class="w-12 h-12 rounded-xl ring-1 ring-white/10">
@@ -74,6 +87,33 @@
       <a data-download="shivamkumarmehta64-sketch/ytube" data-exts=".zip,.exe" href="https://github.com/shivamkumarmehta64-sketch/ytube/releases" target="_blank" rel="noopener"
          class="mt-4 w-full text-center px-5 py-2.5 btn-primary">⬇️ Download ytube</a>
       <a href="/app/ytube.html" class="mt-2 block text-center text-xs text-slate-400 hover:text-white transition">App page ↗</a>
+    </div>
+  </div>
+</section>
+
+<!-- BLACK FIREFOX STEPS -->
+<section class="px-4 pb-12">
+  <div class="max-w-4xl mx-auto">
+    <h3 class="text-2xl font-bold text-white mb-6">Step-by-step (Black Firefox)</h3>
+    <div class="space-y-4">
+      <div class="glass rounded-2xl p-6 reveal">
+        <div class="flex gap-4">
+          <span class="flex-none w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-200 font-bold flex items-center justify-center">1</span>
+          <div>
+            <h5 class="font-semibold text-white">Option A — Windows Setup Installer (Recommended)</h5>
+            <p class="mt-1 text-sm text-slate-400">Run <code class="text-cyan-300">BlackFirefox-v9.0.0-Windows-x64-Setup.exe</code>. It installs per-user without UAC prompts, creates Start Menu &amp; Desktop shortcuts, and automatically checks for the Microsoft WebView2 Runtime.</p>
+          </div>
+        </div>
+      </div>
+      <div class="glass rounded-2xl p-6 reveal">
+        <div class="flex gap-4">
+          <span class="flex-none w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-200 font-bold flex items-center justify-center">2</span>
+          <div>
+            <h5 class="font-semibold text-white">Option B — Portable ZIP</h5>
+            <p class="mt-1 text-sm text-slate-400">Extract <code class="text-cyan-300">BlackFirefox-v9.0.0-Windows-x64.zip</code> anywhere, then double-click <code class="text-cyan-300">Black.exe</code> or run <code class="text-cyan-300">setup.bat</code> to create Start Menu &amp; Desktop shortcuts.</p>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </section>
@@ -130,15 +170,15 @@
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
       <div class="glass rounded-2xl p-6 card-hover reveal">
         <h5 class="font-semibold text-white">🪟 Windows 10 / 11</h5>
-        <p class="mt-1.5 text-sm text-slate-400">Both mtube and ytube are Windows apps.</p>
+        <p class="mt-1.5 text-sm text-slate-400">Black Firefox, mtube, and ytube are native Windows 10/11 desktop apps.</p>
       </div>
       <div class="glass rounded-2xl p-6 card-hover reveal">
         <h5 class="font-semibold text-white">🔌 WebView2 Runtime</h5>
-        <p class="mt-1.5 text-sm text-slate-400">Usually preinstalled on Windows 11. If missing, download it from Microsoft — it's free.</p>
+        <p class="mt-1.5 text-sm text-slate-400">Preinstalled on Windows 11. On older Windows 10 PCs, Black Firefox Setup or launch prompts to install it automatically.</p>
       </div>
       <div class="glass rounded-2xl p-6 card-hover reveal">
-        <h5 class="font-semibold text-white">🧩 .NET Desktop Runtime</h5>
-        <p class="mt-1.5 text-sm text-slate-400">Windows 11 usually has it. If not, install the free .NET Desktop Runtime from Microsoft.</p>
+        <h5 class="font-semibold text-white">🧩 .NET Framework / Runtime</h5>
+        <p class="mt-1.5 text-sm text-slate-400">Black Firefox uses built-in .NET Framework 4.8. mtube and ytube use the free .NET Desktop Runtime from Microsoft.</p>
       </div>
     </div>
   </div>
