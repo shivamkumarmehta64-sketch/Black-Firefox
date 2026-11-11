@@ -72,10 +72,52 @@ namespace BlackBrowser
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.BackColor = _bgForm;
             this.ForeColor = _textPrimary;
-            this.ClientSize = new Size(660, 460);
+            this.ClientSize = new Size(720, 480);
             this.MinimumSize = this.Size;
 
             InitializeComponents(currentTheme, currentEyeCare, initialTab);
+        }
+
+        private void ApplyDarkComboStyle(ComboBox cb)
+        {
+            cb.FlatStyle = FlatStyle.Flat;
+            cb.BackColor = Color.FromArgb(24, 28, 36);
+            cb.ForeColor = _textPrimary;
+            cb.DrawMode = DrawMode.OwnerDrawFixed;
+            cb.ItemHeight = 26;
+            cb.DrawItem += (s, e) =>
+            {
+                if (e.Index < 0 || e.Index >= cb.Items.Count) return;
+                bool selected = (e.State & DrawItemState.Selected) != 0;
+                Color bg = selected ? _accent : Color.FromArgb(24, 28, 36);
+                using (var b = new SolidBrush(bg))
+                    e.Graphics.FillRectangle(b, e.Bounds);
+                Color fg = selected ? Color.White : _textPrimary;
+                TextRenderer.DrawText(e.Graphics, cb.Items[e.Index].ToString(), cb.Font,
+                    new Rectangle(e.Bounds.X + 8, e.Bounds.Y, e.Bounds.Width - 12, e.Bounds.Height),
+                    fg, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+            };
+        }
+
+        private void OnSettingsTabDrawItem(object sender, DrawItemEventArgs e)
+        {
+            TabControl tc = sender as TabControl;
+            if (tc == null || e.Index < 0 || e.Index >= tc.TabPages.Count) return;
+            bool selected = (e.Index == tc.SelectedIndex);
+            Color tabBg = selected ? _cardBg : Color.FromArgb(18, 20, 26);
+            using (var b = new SolidBrush(tabBg))
+                e.Graphics.FillRectangle(b, e.Bounds);
+
+            if (selected)
+            {
+                using (var bar = new SolidBrush(_accent))
+                    e.Graphics.FillRectangle(bar, e.Bounds.X + 8, e.Bounds.Bottom - 3, e.Bounds.Width - 16, 3);
+            }
+
+            Color fg = selected ? _textPrimary : _textSecondary;
+            Font f = selected ? TrackFont("Segoe UI", 9.5f, FontStyle.Bold) : tc.Font;
+            TextRenderer.DrawText(e.Graphics, tc.TabPages[e.Index].Text, f, e.Bounds, fg,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
         }
 
         private void NotifyPreferencesChanged()
@@ -90,11 +132,13 @@ namespace BlackBrowser
             var tabControl = new TabControl();
             tabControl.Dock = DockStyle.Fill;
             tabControl.Font = TrackFont("Segoe UI", 9.5f);
-            tabControl.Appearance = TabAppearance.Buttons;
-            tabControl.ItemSize = new Size(106, 28);
+            tabControl.DrawMode = TabDrawMode.OwnerDrawFixed;
+            tabControl.SizeMode = TabSizeMode.Fixed;
+            tabControl.ItemSize = new Size(118, 34);
+            tabControl.DrawItem += OnSettingsTabDrawItem;
 
             // ─── General & Theme Page ──────────────────────────────────────────────
-            var generalPage = new TabPage("⚙️ General");
+            var generalPage = new TabPage("General");
             generalPage.BackColor = _cardBg;
             generalPage.Padding = new Padding(20);
 
@@ -111,13 +155,13 @@ namespace BlackBrowser
             _themeCombo.DropDownStyle = ComboBoxStyle.DropDownList;
             _themeCombo.Font = TrackFont("Segoe UI", 10f);
             _themeCombo.FlatStyle = FlatStyle.Flat;
-            _themeCombo.BackColor = _cardBg;
+            _themeCombo.BackColor = Color.FromArgb(24, 28, 36);
             _themeCombo.ForeColor = _textPrimary;
             _themeCombo.DrawMode = DrawMode.OwnerDrawVariable;
             _themeCombo.DrawItem += OnThemeDrawItem;
             _themeCombo.MeasureItem += OnThemeMeasureItem;
-            _themeCombo.Items.Add("🌸  Anime Cyberpunk Neon Theme (Default)");
-            _themeCombo.Items.Add("🌙  Obsidian Dark Mode");
+            _themeCombo.Items.Add("Anime Cyberpunk Neon Theme (Default)");
+            _themeCombo.Items.Add("Obsidian Dark Mode");
             _themeCombo.SelectedIndex = (currentTheme >= 0 && currentTheme < _themeCombo.Items.Count) ? currentTheme : 0;
             _themeCombo.SelectedIndexChanged += (s, e) =>
             {
@@ -136,6 +180,7 @@ namespace BlackBrowser
             searchCombo.Width = 220;
             searchCombo.DropDownStyle = ComboBoxStyle.DropDownList;
             searchCombo.Font = TrackFont("Segoe UI", 9.5f);
+            ApplyDarkComboStyle(searchCombo);
             string[] engines = new string[] { "google", "duckduckgo", "bing", "brave", "startpage", "ecosia", "youtube" };
             string[] engineLabels = new string[] { "Google", "DuckDuckGo", "Bing", "Brave Search", "Startpage", "Ecosia", "YouTube" };
             for (int i = 0; i < engineLabels.Length; i++) searchCombo.Items.Add(engineLabels[i]);
@@ -162,6 +207,7 @@ namespace BlackBrowser
             zoomCombo.Width = 100;
             zoomCombo.DropDownStyle = ComboBoxStyle.DropDownList;
             zoomCombo.Font = TrackFont("Segoe UI", 9.5f);
+            ApplyDarkComboStyle(zoomCombo);
             double[] zoomVals = new double[] { 0.8, 0.9, 1.0, 1.1, 1.25, 1.5 };
             string[] zoomLabels = new string[] { "80%", "90%", "100%", "110%", "125%", "150%" };
             for (int i = 0; i < zoomLabels.Length; i++) zoomCombo.Items.Add(zoomLabels[i]);
@@ -282,7 +328,7 @@ namespace BlackBrowser
             generalPage.Controls.Add(chkRestore);
 
             // ─── Eye Care Page ─────────────────────────────────────────────────────
-            var eyeCarePage = new TabPage("👁️  Eye Care & Screen");
+            var eyeCarePage = new TabPage("Eye Care");
             eyeCarePage.BackColor = _cardBg;
             eyeCarePage.Padding = new Padding(20);
 
@@ -299,14 +345,14 @@ namespace BlackBrowser
             _eyeCareCombo.DropDownStyle = ComboBoxStyle.DropDownList;
             _eyeCareCombo.Font = new Font("Segoe UI", 10f);
             _eyeCareCombo.FlatStyle = FlatStyle.Flat;
-            _eyeCareCombo.BackColor = _cardBg;
+            _eyeCareCombo.BackColor = Color.FromArgb(24, 28, 36);
             _eyeCareCombo.ForeColor = _textPrimary;
             _eyeCareCombo.DrawMode = DrawMode.OwnerDrawVariable;
             _eyeCareCombo.DrawItem += OnEyeCareDrawItem;
             _eyeCareCombo.MeasureItem += OnEyeCareMeasureItem;
             _eyeCareCombo.Items.Add("Disabled");
-            _eyeCareCombo.Items.Add("👁️  Warm Amber (Night Light Filter - 18%)");
-            _eyeCareCombo.Items.Add("🌙  Night Dimmer (Dark Screen Filter - 35%)");
+            _eyeCareCombo.Items.Add("Warm Amber (Night Light Filter - 18%)");
+            _eyeCareCombo.Items.Add("Night Dimmer (Dark Screen Filter - 35%)");
             _eyeCareCombo.SelectedIndex = (currentEyeCare >= 0 && currentEyeCare < _eyeCareCombo.Items.Count) ? currentEyeCare : 0;
             _eyeCareCombo.SelectedIndexChanged += (s, e) =>
             {
@@ -317,12 +363,12 @@ namespace BlackBrowser
             eyeCarePage.Controls.Add(_eyeCareCombo);
 
             // ─── Dark Notes Page ───────────────────────────────────────────────────
-            var notesPage = new TabPage("📝 Dark Notes");
+            var notesPage = new TabPage("Dark Notes");
             notesPage.BackColor = _cardBg;
             notesPage.Padding = new Padding(12);
 
             var notesHeader = new Label();
-            notesHeader.Text = "📝  Quick Dark Notes (Auto-Saved Locally)";
+            notesHeader.Text = "Quick Dark Notes (Auto-Saved Locally)";
             notesHeader.Dock = DockStyle.Top;
             notesHeader.Height = 32;
             notesHeader.Font = TrackFont("Segoe UI", 10f, FontStyle.Bold);
@@ -392,7 +438,7 @@ namespace BlackBrowser
             notesPage.Controls.Add(notesHeader);
 
             // ─── Device Info Page ──────────────────────────────────────────────────
-            var devicePage = new TabPage("💻  Device & Hardware");
+            var devicePage = new TabPage("Device");
             devicePage.BackColor = _cardBg;
             devicePage.Padding = new Padding(20);
 
@@ -405,7 +451,7 @@ namespace BlackBrowser
             devicePage.Controls.Add(infoLabel);
 
             // ─── Legal & Branding Page ─────────────────────────────────────────────
-            var legalPage = new TabPage("📜  About & Legal");
+            var legalPage = new TabPage("About & Legal");
             legalPage.BackColor = _cardBg;
             legalPage.Padding = new Padding(20);
 
@@ -459,12 +505,12 @@ namespace BlackBrowser
             legalPage.Controls.Add(linkTrademark);
 
             // ─── Customization Page ──────────────────────────────────────────────
-            var customPage = new TabPage("🎨  Theme");
+            var customPage = new TabPage("Theme");
             customPage.BackColor = _cardBg;
             customPage.Padding = new Padding(20);
 
             var customTitle = new Label();
-            customTitle.Text = "🎨 Speed Dial Theme & Widget Customization";
+            customTitle.Text = "Speed Dial Theme & Widget Customization";
             customTitle.Location = new Point(20, 20);
             customTitle.AutoSize = true;
             customTitle.Font = new Font("Segoe UI", 11f, FontStyle.Bold);
@@ -482,11 +528,12 @@ namespace BlackBrowser
             bgCombo.Width = 260;
             bgCombo.DropDownStyle = ComboBoxStyle.DropDownList;
             bgCombo.Font = new Font("Segoe UI", 9.5f);
-            bgCombo.Items.Add("🌸 Aurora Glassmorphism");
-            bgCombo.Items.Add("⚡ Cyberpunk Neon Glow");
-            bgCombo.Items.Add("🌌 Deep Space Nebula");
-            bgCombo.Items.Add("🌑 Obsidian Minimalist");
-            bgCombo.Items.Add("☀️ Light Glassmorphism");
+            ApplyDarkComboStyle(bgCombo);
+            bgCombo.Items.Add("Aurora Glassmorphism");
+            bgCombo.Items.Add("Cyberpunk Neon Glow");
+            bgCombo.Items.Add("Deep Space Nebula");
+            bgCombo.Items.Add("Obsidian Minimalist");
+            bgCombo.Items.Add("Light Glassmorphism");
 
             string currentBg = SettingsStore.SpeedDialBg.ToLowerInvariant();
             if (currentBg == "cyberpunk") bgCombo.SelectedIndex = 1;
@@ -550,11 +597,12 @@ namespace BlackBrowser
             accentCombo.Width = 260;
             accentCombo.DropDownStyle = ComboBoxStyle.DropDownList;
             accentCombo.Font = new Font("Segoe UI", 9.5f);
-            accentCombo.Items.Add("✨ Classic Blue (#0C63E8)");
-            accentCombo.Items.Add("💖 Cyberpunk Pink (#ec4899)");
-            accentCombo.Items.Add("🌿 Aurora Emerald (#10b981)");
-            accentCombo.Items.Add("🍊 Amber Gold (#f59e0b)");
-            accentCombo.Items.Add("🔮 Nebula Purple (#8b5cf6)");
+            ApplyDarkComboStyle(accentCombo);
+            accentCombo.Items.Add("Classic Blue (#0C63E8)");
+            accentCombo.Items.Add("Cyberpunk Pink (#ec4899)");
+            accentCombo.Items.Add("Aurora Emerald (#10b981)");
+            accentCombo.Items.Add("Amber Gold (#f59e0b)");
+            accentCombo.Items.Add("Nebula Purple (#8b5cf6)");
 
             string currentAcc = SettingsStore.Accent.ToLowerInvariant();
             if (currentAcc == "#ec4899") accentCombo.SelectedIndex = 1;
@@ -585,6 +633,7 @@ namespace BlackBrowser
             roundCombo.Width = 260;
             roundCombo.DropDownStyle = ComboBoxStyle.DropDownList;
             roundCombo.Font = new Font("Segoe UI", 9.5f);
+            ApplyDarkComboStyle(roundCombo);
             roundCombo.Items.Add("Sharp Modern (0px)");
             roundCombo.Items.Add("Standard Rounded (8px)");
             roundCombo.Items.Add("Pill Style (12px)");

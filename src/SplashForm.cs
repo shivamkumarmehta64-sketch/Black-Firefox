@@ -119,7 +119,7 @@ namespace BlackBrowser
             using (Pen pen = new Pen(Color.FromArgb(60, ChromePainter.Accent), 1f))
                 g.DrawRectangle(pen, 1, 1, Width - 3, Height - 3);
 
-            // Logo.
+            // Logo (clipped smoothly inside circle with subtle accent ring to avoid opaque ICO square edges).
             int logoSize = 84;
             int logoX = (Width - logoSize) / 2;
             int logoY = 34;
@@ -130,8 +130,16 @@ namespace BlackBrowser
                 {
                     using (Icon ico = new Icon(iconPath))
                     using (Bitmap bmp = ico.ToBitmap())
+                    using (GraphicsPath logoClip = new GraphicsPath())
                     {
-                        g.DrawImage(bmp, logoX, logoY, logoSize, logoSize);
+                        RectangleF ringRect = new RectangleF(logoX + 6, logoY + 6, logoSize - 12, logoSize - 12);
+                        logoClip.AddEllipse(ringRect);
+                        GraphicsState prevLogo = g.Save();
+                        g.SetClip(logoClip);
+                        g.DrawImage(bmp, logoX + 3, logoY + 3, logoSize - 6, logoSize - 6);
+                        g.Restore(prevLogo);
+                        using (Pen ringPen = new Pen(Color.FromArgb(140, ChromePainter.Lighten(ChromePainter.Accent, 0.35f)), 2f))
+                            g.DrawEllipse(ringPen, ringRect);
                     }
                 }
                 catch
@@ -161,7 +169,7 @@ namespace BlackBrowser
                     new PointF((Width - sSize.Width) / 2f, logoY + logoSize + 52));
             }
 
-            // Progress bar with animated sweep.
+            // Progress bar clipped cleanly inside track bounds.
             int barW = Width - 120;
             int barX = 60;
             int barY = Height - 56;
@@ -172,6 +180,8 @@ namespace BlackBrowser
             float sweep = (_t % 1.4f) / 1.4f;
             float segW = 110f;
             float segX = barX + sweep * (barW + segW) - segW;
+            GraphicsState barState = g.Save();
+            g.SetClip(bar);
             using (LinearGradientBrush fill = new LinearGradientBrush(
                 new RectangleF(segX, barY, segW, 4),
                 Color.FromArgb(0, ChromePainter.Accent),
@@ -180,6 +190,7 @@ namespace BlackBrowser
             {
                 g.FillRectangle(fill, segX, barY, segW, 4);
             }
+            g.Restore(barState);
 
             base.OnPaint(e);
         }

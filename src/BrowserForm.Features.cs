@@ -483,7 +483,7 @@ namespace BlackBrowser
                 string shortcutPath = Path.Combine(desktopDir, appName + ".lnk");
                 string exePath = Application.ExecutablePath;
                 string iconPath = Path.Combine(Application.StartupPath, "icon.ico");
-                string argStr = "--app=" + parsed.AbsoluteUri;
+                string argStr = "--newwindow --app=" + parsed.AbsoluteUri;
 
                 string psScript =
                     "$ws = New-Object -ComObject WScript.Shell; " +

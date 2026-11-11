@@ -373,14 +373,14 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 12px 20px;
+  gap: 12px;
+  padding: 10px 16px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 20px;
   backdrop-filter: blur(24px);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-  margin-bottom: 40px;
+  margin-bottom: 24px;
   animation: fadeInDown 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -392,25 +392,26 @@ body {
 .brand {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   text-decoration: none;
+  flex-shrink: 0;
 }
 
 .brand-badge-icon {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   background: linear-gradient(135deg, #6366f1, #a855f7);
-  border-radius: 12px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
+  font-size: 18px;
   box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
 }
 
 .brand-text-title {
   font-family: var(--font-display);
-  font-size: 18px;
+  font-size: 16.5px;
   font-weight: 800;
   background: linear-gradient(135deg, #818cf8, #c084fc);
   -webkit-background-clip: text;
@@ -439,19 +440,21 @@ body {
 .nav-chips {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .nav-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 13px;
+  gap: 5px;
+  padding: 6px 10px;
   border-radius: 10px;
   color: var(--text-muted);
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 600;
+  white-space: nowrap;
   text-decoration: none;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border);
@@ -468,7 +471,7 @@ body {
 /* Hero Section */
 .hero {
   text-align: center;
-  margin-bottom: 36px;
+  margin-bottom: 24px;
   animation: fadeInUp 0.7s 0.1s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -479,7 +482,7 @@ body {
 
 .hero-clock {
   font-family: var(--font-display);
-  font-size: 64px;
+  font-size: 56px;
   font-weight: 800;
   letter-spacing: -2px;
   background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 45%, #818cf8 100%);
@@ -527,7 +530,7 @@ body {
 /* Omni-Search Box */
 .search-section {
   max-width: 680px;
-  margin: 0 auto 44px;
+  margin: 0 auto 28px;
   width: 100%;
   animation: fadeInUp 0.7s 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
@@ -700,7 +703,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
+  font-size: 17px;
+  letter-spacing: -0.4px;
   font-weight: 700;
   margin-bottom: 8px;
   position: relative;

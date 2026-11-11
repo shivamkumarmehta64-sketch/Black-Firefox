@@ -100,10 +100,9 @@ namespace BlackBrowser
                             ReleaseAsset zipAsset = null;
                             string checksumUrl = "";
 
-                            if (dict.ContainsKey("assets") && dict["assets"] is object[])
+                            if (dict.ContainsKey("assets") && dict["assets"] is System.Collections.IEnumerable && !(dict["assets"] is string))
                             {
-                                object[] assets = (object[])dict["assets"];
-                                foreach (object assetObj in assets)
+                                foreach (object assetObj in (System.Collections.IEnumerable)dict["assets"])
                                 {
                                     Dictionary<string, object> asset = assetObj as Dictionary<string, object>;
                                     if (asset == null) continue;

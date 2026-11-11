@@ -86,7 +86,10 @@ namespace BlackBrowser
             {
                 if (string.IsNullOrWhiteSpace(raw)) continue;
                 string a = raw.Trim();
-                if (a.StartsWith("--") && !a.Equals("--youtube", StringComparison.OrdinalIgnoreCase) && !a.Equals("--ytmusic", StringComparison.OrdinalIgnoreCase))
+                if (a.StartsWith("--") &&
+                    !a.Equals("--youtube", StringComparison.OrdinalIgnoreCase) &&
+                    !a.Equals("--ytmusic", StringComparison.OrdinalIgnoreCase) &&
+                    !a.StartsWith("--app=", StringComparison.OrdinalIgnoreCase))
                     continue;
                 return a;
             }

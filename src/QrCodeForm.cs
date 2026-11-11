@@ -19,7 +19,7 @@ namespace BlackBrowser
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
             this.MinimizeBox = false;
-            this.BackColor = Color.FromArgb(32, 33, 36);
+            this.BackColor = Color.FromArgb(22, 24, 32);
             this.ForeColor = Color.White;
             this.ClientSize = new Size(340, 430);
             this.Font = new Font("Segoe UI", 10f);
@@ -27,7 +27,7 @@ namespace BlackBrowser
 
             Label title = new Label
             {
-                Text = "📱 Scan to open on your phone (Offline)",
+                Text = "Scan QR to open on phone (Offline)",
                 ForeColor = Color.FromArgb(232, 234, 237),
                 Location = new Point(20, 12),
                 Size = new Size(300, 24),
@@ -46,25 +46,30 @@ namespace BlackBrowser
             urlBox = new TextBox
             {
                 ReadOnly = true,
-                Location = new Point(20, 352),
-                Size = new Size(200, 28),
-                BackColor = Color.FromArgb(44, 44, 54),
-                ForeColor = Color.White,
+                TabStop = false,
+                Location = new Point(20, 354),
+                Size = new Size(202, 28),
+                BackColor = Color.FromArgb(34, 36, 46),
+                ForeColor = Color.FromArgb(215, 222, 240),
                 BorderStyle = BorderStyle.FixedSingle,
+                Font = new Font("Segoe UI", 9.5f),
                 Text = safeUrl
             };
 
             Button copyBtn = new Button
             {
-                Text = "📋 Copy URL",
-                Location = new Point(230, 351),
+                Text = "Copy URL",
+                Location = new Point(230, 353),
                 Size = new Size(90, 30),
-                BackColor = Color.FromArgb(0, 96, 223),
+                BackColor = Color.FromArgb(12, 99, 232),
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
                 Cursor = Cursors.Hand
             };
+            copyBtn.FlatAppearance.BorderSize = 0;
             copyBtn.Click += (s, e) => { try { Clipboard.SetText(urlBox.Text); } catch { } };
+            this.Shown += (s, e) => { urlBox.SelectionStart = 0; urlBox.SelectionLength = 0; copyBtn.Focus(); };
 
             this.Controls.Add(title);
             this.Controls.Add(qrBox);
