@@ -226,13 +226,13 @@ namespace BlackBrowser
                     string safeVer = System.Web.HttpUtility.HtmlEncode(ext.Version ?? "1.0");
                     string safeDesc = System.Web.HttpUtility.HtmlEncode(ext.Description ?? "");
                     string safePath = System.Web.HttpUtility.HtmlEncode(ext.Path ?? "");
-                    string jsName = JsEscape(ext.Name ?? "Extension");
+                    string safeId = System.Web.HttpUtility.HtmlEncode(ext.Id ?? "");
                     string attrPath = AttributeEscape(ext.Path ?? "");
                     string isChecked = ext.Enabled ? "checked" : "";
                     string statusBadge = ext.Enabled ? "<span class='badge active'>Active</span>" : "<span class='badge inactive'>Disabled</span>";
 
                     cards.Append(string.Format(@"
-                    <div class='ext-card'>
+                    <div class='ext-card' data-id='{6}' data-name='{0}'>
                         <div class='ext-header'>
                             <div class='ext-icon'>🧩</div>
                             <div class='ext-info'>
@@ -247,12 +247,12 @@ namespace BlackBrowser
                         </div>
                         <div class='ext-actions'>
                             <label class='switch'>
-                                <input type='checkbox' {5} onchange=""location.href='black://toggle-extension?id={6}&val=' + this.checked"">
+                                <input type='checkbox' class='ext-toggle' {5}>
                                 <span class='slider'></span>
                             </label>
-                            <button class='btn-danger' onclick=""if(confirm('Remove extension {8}?')) location.href='black://remove-extension?id={6}'"">🗑️ Remove</button>
+                            <button type='button' class='btn-danger'>🗑️ Remove</button>
                         </div>
-                    </div>", safeName, safeVer, statusBadge, safeDesc, safePath, isChecked, ext.Id, attrPath, jsName));
+                    </div>", safeName, safeVer, statusBadge, safeDesc, safePath, isChecked, safeId, attrPath));
                 }
             }
 
@@ -505,10 +505,31 @@ namespace BlackBrowser
             </div>
             <a href='black://load-extension' class='btn-primary'>📂 Load Unpacked Extension</a>
         </div>
-        <div class='ext-grid'>
+        <div class='ext-grid' id='extGrid'>
             {5}
         </div>
     </div>
+    <script>
+        document.getElementById('extGrid').addEventListener('change', function(e) {{
+            if (e.target && e.target.classList.contains('ext-toggle')) {{
+                var card = e.target.closest('.ext-card');
+                if (!card) return;
+                var id = card.getAttribute('data-id') || '';
+                location.href = 'black://toggle-extension?id=' + encodeURIComponent(id) + '&val=' + e.target.checked;
+            }}
+        }});
+        document.getElementById('extGrid').addEventListener('click', function(e) {{
+            var btn = e.target.closest('.btn-danger');
+            if (!btn) return;
+            var card = btn.closest('.ext-card');
+            if (!card) return;
+            var id = card.getAttribute('data-id') || '';
+            var name = card.getAttribute('data-name') || 'this extension';
+            if (confirm('Remove extension ' + name + '?')) {{
+                location.href = 'black://remove-extension?id=' + encodeURIComponent(id);
+            }}
+        }});
+    </script>
 </body>
 </html>",
             isDark ? "#0e0f14" : "#f4f5f9",

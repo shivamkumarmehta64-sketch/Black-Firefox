@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Windows.Forms;
@@ -57,19 +58,7 @@ namespace BlackBrowser
             return sb.ToString();
         }
 
-        private static string GetFaviconUrl(string url)
-        {
-            try
-            {
-                Uri u = new Uri(url.StartsWith("http") ? url : "https://" + url);
-                string host = u.Host;
-                if (host.StartsWith("www.")) host = host.Substring(4);
-                return "https://www.google.com/s2/favicons?domain=" + host + "&sz=128";
-            }
-            catch { return ""; }
-        }
-
-        private static string _cachedKey = null;
+        private static string _cachedFileKey = null;
         private static string _cachedFilePath = null;
 
         private static string BuildSpeedDialKey(bool isDarkMode)
@@ -81,6 +70,7 @@ namespace BlackBrowser
             sb.Append('|').Append(SettingsStore.ShowClock ? "1" : "0");
             sb.Append('|').Append(SettingsStore.ShowNotes ? "1" : "0");
             sb.Append('|').Append(SettingsStore.ShowTelemetry ? "1" : "0");
+            sb.Append('|').Append(SettingsStore.AnimationsEnabled ? "1" : "0");
             sb.Append('|').Append(SettingsStore.CornerRadius);
             sb.Append('|').Append(SettingsStore.Accent ?? "");
             try
@@ -103,17 +93,25 @@ namespace BlackBrowser
             return sb.ToString();
         }
 
-        private static string _cachedHtml = null;
-
         public static string GetHtml(bool isDarkMode)
         {
-            string key = BuildSpeedDialKey(isDarkMode);
-            if (_cachedHtml != null && _cachedKey == key) return _cachedHtml;
+            // Always render live RAM, AdShield counters, recent history, bookmarks, and synced notes cleanly.
+            return BuildHtml(isDarkMode);
+        }
 
-            string html = BuildHtml(isDarkMode);
-            _cachedKey = key;
-            _cachedHtml = html;
-            return html;
+        private static string GetHostLabel(string url)
+        {
+            try
+            {
+                Uri u;
+                if (Uri.TryCreate(url, UriKind.Absolute, out u) && !string.IsNullOrEmpty(u.Host))
+                {
+                    string h = u.Host;
+                    return h.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? h.Substring(4) : h;
+                }
+            }
+            catch { }
+            return "web";
         }
 
         private static string BuildHtml(bool isDarkMode)
@@ -121,11 +119,92 @@ namespace BlackBrowser
             string userName = Environment.UserName;
             if (string.IsNullOrEmpty(userName)) userName = "Explorer";
 
+            long ramMb = MemoryTrimmer.GetWorkingSetMB();
+            long blockedAds = AdShieldEngine.TotalBlockedCount;
+            int disabledSitesCount = AdShieldState.DisabledSitesCount;
+            bool adShieldEnabled = SettingsStore.AdShieldEnabled;
+            bool httpsFirst = SettingsStore.HttpsFirstMode;
+            bool restoreSession = SettingsStore.RestoreSession;
+
+            string rawWv2Ver = Program.GetInstalledWebView2Version();
+            string wv2Short = !string.IsNullOrEmpty(rawWv2Ver) ? (rawWv2Ver + " x64") : "WebView2 x64";
+            if (wv2Short.Length > 20) wv2Short = rawWv2Ver.Substring(0, Math.Min(12, rawWv2Ver.Length)) + " x64";
+
+            List<BookmarkItem> allBookmarks = BookmarksManager.GetBookmarks() ?? new List<BookmarkItem>();
+            List<HistoryItem> allHistory = HistoryManager.GetHistoryItems() ?? new List<HistoryItem>();
+            List<PasswordItem> allPasswords = PasswordManager.GetPasswords() ?? new List<PasswordItem>();
+            List<ExtensionItem> allExtensions = ExtensionManager.GetInstalledExtensions() ?? new List<ExtensionItem>();
+            int downloadsCount = DownloadsManager.GetDownloadsCount();
+
             string currentEngine = (SettingsStore.SearchEngine ?? "google").ToLowerInvariant();
-            string searchEngineGoogle    = currentEngine == "google"    ? " active" : "";
-            string searchEngineDdg       = currentEngine == "duckduckgo"? " active" : "";
-            string searchEngineBing      = currentEngine == "bing"      ? " active" : "";
-            string searchEngineYoutube   = currentEngine == "youtube"   ? " active" : "";
+            string searchEngineGoogle    = currentEngine == "google"     ? " active" : "";
+            string searchEngineDdg       = currentEngine == "duckduckgo" ? " active" : "";
+            string searchEngineBing      = currentEngine == "bing"       ? " active" : "";
+            string searchEngineBrave     = currentEngine == "brave"      ? " active" : "";
+            string searchEngineYoutube   = currentEngine == "youtube"    ? " active" : "";
+            string searchEngineGithub    = currentEngine == "github"     ? " active" : "";
+            string searchEngineWiki      = currentEngine == "wikipedia"  ? " active" : "";
+            string searchEngineStartpage = currentEngine == "startpage"  ? " active" : "";
+
+            // Recent History HTML (top 5 distinct safe external entries)
+            StringBuilder recentHistSb = new StringBuilder();
+            HashSet<string> seenRecent = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            int recentShown = 0;
+            for (int i = 0; i < allHistory.Count && recentShown < 5; i++)
+            {
+                HistoryItem hi = allHistory[i];
+                if (hi == null || string.IsNullOrWhiteSpace(hi.Url)) continue;
+                if (!HistoryManager.IsSafeUrl(hi.Url)) continue;
+                if (hi.Url.StartsWith("black://", StringComparison.OrdinalIgnoreCase) || InternalUrlRouter.IsInternalOrigin(hi.Url)) continue;
+                if (!seenRecent.Add(hi.Url)) continue;
+                string title = string.IsNullOrWhiteSpace(hi.Title) ? GetHostLabel(hi.Url) : hi.Title.Trim();
+                if (title.Length > 44) title = title.Substring(0, 41) + "...";
+                string host = GetHostLabel(hi.Url);
+                string firstCh = string.IsNullOrEmpty(host) ? "W" : host.Substring(0, 1).ToUpperInvariant();
+                recentHistSb.Append(
+                    "<a class='recent-row' href='" + SimpleHtmlEncode(hi.Url) + "'>"
+                    + "<span class='recent-badge'>" + SimpleHtmlEncode(firstCh) + "</span>"
+                    + "<span class='recent-meta'><span class='recent-title'>" + SimpleHtmlEncode(title) + "</span>"
+                    + "<span class='recent-host'>" + SimpleHtmlEncode(host) + "</span></span>"
+                    + "<span class='recent-arrow'>&#x2197;</span>"
+                    + "</a>"
+                );
+                recentShown++;
+            }
+            if (recentShown == 0)
+            {
+                recentHistSb.Append("<div class='recent-empty'>No recent sites visited yet. Use search or Speed Dial above to start browsing.</div>");
+            }
+
+            // Pinned / Saved Bookmarks HTML (top 5 safe entries)
+            StringBuilder recentBmSb = new StringBuilder();
+            int bmShown = 0;
+            for (int i = 0; i < allBookmarks.Count && bmShown < 5; i++)
+            {
+                BookmarkItem bm = allBookmarks[i];
+                if (bm == null || string.IsNullOrWhiteSpace(bm.Url)) continue;
+                if (!BookmarksManager.IsSafeUrl(bm.Url)) continue;
+                string title = string.IsNullOrWhiteSpace(bm.Title) ? GetHostLabel(bm.Url) : bm.Title.Trim();
+                if (title.Length > 44) title = title.Substring(0, 41) + "...";
+                string host = GetHostLabel(bm.Url);
+                recentBmSb.Append(
+                    "<a class='recent-row' href='" + SimpleHtmlEncode(bm.Url) + "'>"
+                    + "<span class='recent-badge bm'>&#x2B50;</span>"
+                    + "<span class='recent-meta'><span class='recent-title'>" + SimpleHtmlEncode(title) + "</span>"
+                    + "<span class='recent-host'>" + SimpleHtmlEncode(host) + "</span></span>"
+                    + "<span class='recent-arrow'>&#x2197;</span>"
+                    + "</a>"
+                );
+                bmShown++;
+            }
+            if (bmShown == 0)
+            {
+                recentBmSb.Append("<div class='recent-empty'>No bookmarks saved yet. Press Ctrl+D on any site to save it.</div>");
+            }
+
+            string syncedNotesText = SettingsStore.GetQuickNotes();
+            int ramPct = (int)Math.Min(100, Math.Max(8, (ramMb * 100) / 256));
+            int secActiveCount = (adShieldEnabled ? 1 : 0) + (httpsFirst ? 1 : 0) + (restoreSession ? 1 : 0) + 3;
 
             // Build shortcuts HTML from user's saved dials
             var dialsSb = new StringBuilder();
@@ -136,25 +215,25 @@ namespace BlackBrowser
                 {
                     foreach (var d in dials)
                     {
+                        string rawUrl = d.Url ?? "https://google.com";
+                        if (!rawUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+                            !rawUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                            rawUrl = "https://google.com";
                         string safeTitle = SimpleHtmlEncode(d.Title ?? "App");
-                        string safeUrl   = SimpleHtmlEncode(d.Url ?? "https://google.com");
+                        string safeUrl   = SimpleHtmlEncode(rawUrl);
                         string safeIcon  = SimpleHtmlEncode(d.IconText ?? "?");
                         string safeBg    = SimpleHtmlEncode(d.BgColor ?? "#6366f1");
                         string safeFg    = SimpleHtmlEncode(d.FgColor ?? "#ffffff");
-                        string favicon   = GetFaviconUrl(d.Url ?? "");
-                        string imgTag    = favicon != "" ? "<img class='sh-img' src='" + favicon + "' alt='' onerror='this.style.display=\"none\"'>" : "";
-                        string removeUrl = SimpleHtmlEncode(SimpleJsEncode(d.Url ?? ""));
 
                         dialsSb.Append(
-                            "<div class='sh-tile-wrapper'>"
+                            "<div class='sh-tile-wrapper' data-rawtitle='" + safeTitle + "' data-rawurl='" + safeUrl + "'>"
                             + "<a class='sh-tile' href='" + safeUrl + "' title='" + safeTitle + "'>"
                             + "<div class='sh-icon' style='background:" + safeBg + ";color:" + safeFg + "'>"
                             + "<span class='sh-letter'>" + safeIcon + "</span>"
-                            + imgTag
                             + "</div>"
                             + "<div class='sh-label'>" + safeTitle + "</div>"
                             + "</a>"
-                            + "<button class='sh-rm' onclick='event.preventDefault();event.stopPropagation();if(confirm(\"Remove shortcut: " + safeTitle + "?\"))location.href=\"black://removedial?url=\"+encodeURIComponent(\"" + removeUrl + "\")' title='Remove shortcut'>&#x2715;</button>"
+                            + "<button type='button' class='sh-rm' onclick='removeDial(event,this)' title='Remove shortcut'>&#x2715;</button>"
                             + "</div>"
                         );
                     }
@@ -212,14 +291,11 @@ namespace BlackBrowser
 <meta charset='utf-8'>
 <meta name='viewport' content='width=device-width, initial-scale=1'>
 <title>New Tab • Black Firefox</title>
-<link rel='preconnect' href='https://fonts.googleapis.com'>
-<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>
-<link href='https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap' rel='stylesheet'>
 <style>
 :root {
-  --font-main: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-display: 'Outfit', var(--font-main);
-  --font-mono: 'JetBrains Mono', monospace;
+  --font-main: 'Segoe UI Variable Display', 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+  --font-display: 'Segoe UI Variable Display', 'Segoe UI', var(--font-main);
+  --font-mono: 'Cascadia Code', 'Consolas', monospace;
   --accent: " + SettingsStore.Accent + @";
   --accent-light: " + SettingsStore.Accent + @"ee;
   --accent-purple: #a855f7;
@@ -1011,15 +1087,16 @@ body {
 }
 
 .modal-card {
-  background: #12141c;
+  background: var(--surface-card);
   border: 1px solid rgba(99, 102, 241, 0.35);
   border-radius: 20px;
   padding: 24px;
   max-width: 560px;
   width: 90%;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6), 0 0 32px rgba(99, 102, 241, 0.25);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45), 0 0 32px rgba(99, 102, 241, 0.2);
   transform: translateY(20px) scale(0.95);
   transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  backdrop-filter: blur(24px);
 }
 
 .modal-overlay.active .modal-card {
@@ -1037,13 +1114,13 @@ body {
   font-family: var(--font-display);
   font-size: 18px;
   font-weight: 700;
-  color: #f8fafc;
+  color: var(--text);
 }
 
 .modal-close {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--border);
-  color: #94a3b8;
+  color: var(--text-muted);
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -1071,7 +1148,7 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--border);
   border-radius: 10px;
 }
@@ -1089,7 +1166,211 @@ body {
 
 .sc-desc {
   font-size: 12px;
-  color: #cbd5e1;
+  color: var(--text-muted);
+}
+
+/* Command Action Strip & Jump-Back-In Widget */
+.command-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: -20px auto 34px;
+  max-width: 960px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  backdrop-filter: blur(20px);
+  animation: fadeInUp 0.7s 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.action-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  transition: all 0.2s ease;
+}
+
+.action-pill:hover {
+  color: var(--text);
+  border-color: var(--accent);
+  background: rgba(99, 102, 241, 0.14);
+  transform: translateY(-1px);
+}
+
+.action-pill.on {
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.strip-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+  margin: 0 2px;
+}
+
+.theme-pills {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.theme-pill {
+  padding: 4px 9px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  transition: all 0.2s ease;
+  text-transform: capitalize;
+}
+
+.theme-pill:hover { color: var(--text); border-color: var(--accent); }
+.theme-pill.active { background: rgba(99, 102, 241, 0.22); color: #818cf8; border-color: var(--accent); }
+
+.nav-count {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: rgba(99, 102, 241, 0.18);
+  color: #818cf8;
+}
+
+.status-link {
+  color: inherit;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: color 0.2s ease;
+}
+
+.status-link:hover { color: var(--text); }
+
+.recent-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.tab-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tab-btn.active {
+  background: rgba(99, 102, 241, 0.22);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.recent-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.14);
+  border: 1px solid var(--border);
+  text-decoration: none;
+  color: var(--text);
+  transition: all 0.2s ease;
+}
+
+.recent-row:hover {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.35);
+  transform: translateX(2px);
+}
+
+.recent-badge {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(99, 102, 241, 0.22);
+  color: #818cf8;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.recent-badge.bm {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fbbf24;
+}
+
+.recent-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.recent-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recent-host {
+  font-size: 10.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recent-arrow {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.recent-empty {
+  padding: 22px 12px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-dim);
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  border: 1px dashed var(--border);
+}
+
+.sec-dot.off {
+  background: #f59e0b;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.55);
 }
 
 /* Dynamic Layout Overrides */
@@ -1111,20 +1392,21 @@ body {
 
   <!-- Topbar -->
   <div class='topbar'>
-    <a class='brand' href='black://home'>
+    <a class='brand' href='black://check-updates' title='Click to check for updates (" + SimpleHtmlEncode(UpdateManager.CurrentVersion) + @")'>
       <div class='brand-badge-icon'>&#x1F98A;</div>
       <div>
         <div class='brand-text-title'>Black Firefox</div>
-        <div class='brand-sub'>Private &amp; Secure</div>
+        <div class='brand-sub'>" + SimpleHtmlEncode(UpdateManager.CurrentVersion) + @" &bull; Private &amp; Secure</div>
       </div>
     </a>
     <div class='nav-chips'>
-      <a class='nav-chip' href='black://bookmarks'>&#x2B50; Bookmarks</a>
-      <a class='nav-chip' href='black://history'>&#x1F4DC; History</a>
-      <a class='nav-chip' href='black://downloads'>&#x1F4E5; Downloads</a>
-      <a class='nav-chip' href='black://passwords'>&#x1F510; Passwords</a>
+      <a class='nav-chip' href='black://bookmarks'>&#x2B50; Bookmarks <span class='nav-count'>" + allBookmarks.Count + @"</span></a>
+      <a class='nav-chip' href='black://history'>&#x1F4DC; History <span class='nav-count'>" + allHistory.Count + @"</span></a>
+      <a class='nav-chip' href='black://downloads'>&#x1F4E5; Downloads <span class='nav-count'>" + downloadsCount + @"</span></a>
+      <a class='nav-chip' href='black://passwords'>&#x1F510; Passwords <span class='nav-count'>" + allPasswords.Count + @"</span></a>
       <a class='nav-chip' href='black://cookies'>&#x1F36A; Cookies</a>
-      <a class='nav-chip' href='black://extensions'>&#x1F9E9; Extensions</a>
+      <a class='nav-chip' href='black://extensions'>&#x1F9E9; Extensions <span class='nav-count'>" + allExtensions.Count + @"</span></a>
+      <a class='nav-chip' href='black://settings'>&#x2699;&#xFE0F; Settings</a>
     </div>
   </div>
 
@@ -1135,11 +1417,11 @@ body {
     <div class='hero-status-pill' style='" + (SettingsStore.ShowTelemetry ? "" : "display:none;") + @"'>
       <span id='date'>Loading date...</span>
       <span>&bull;</span>
-      <span>&#x1F6E1;&#xFE0F; AdShield Active</span>
+      <a class='status-link' href='black://toggle-adshield' title='Toggle AdShield protection'>" + (adShieldEnabled ? "&#x1F6E1;&#xFE0F; AdShield Active (" + blockedAds + " blocked)" : "&#x23F8;&#xFE0F; AdShield Paused") + @"</a>
       <span>&bull;</span>
-      <span>&#x1F512; DPAPI Protected</span>
+      <a class='status-link' href='black://toggle-https' title='Toggle HTTPS-First enforcement'>" + (httpsFirst ? "&#x1F512; HTTPS-First On" : "&#x1F513; HTTPS-First Off") + @"</a>
       <span>&bull;</span>
-      <span>&#x26A1; 0 Telemetry</span>
+      <a class='status-link' href='black://optimize-memory' title='Click to optimize working set RAM'>&#x26A1; " + ramMb + @" MB RAM</a>
     </div>
   </div>
 
@@ -1156,11 +1438,34 @@ body {
         <a class='engine-chip" + searchEngineGoogle + @"' href='black://setsearch?engine=google'>Google</a>
         <a class='engine-chip" + searchEngineDdg + @"' href='black://setsearch?engine=duckduckgo'>DuckDuckGo</a>
         <a class='engine-chip" + searchEngineBing + @"' href='black://setsearch?engine=bing'>Bing</a>
+        <a class='engine-chip" + searchEngineBrave + @"' href='black://setsearch?engine=brave'>Brave</a>
         <a class='engine-chip" + searchEngineYoutube + @"' href='black://setsearch?engine=youtube'>YouTube</a>
-        <a class='engine-chip' href='https://github.com' target='_blank'>GitHub</a>
-        <a class='engine-chip' href='https://en.wikipedia.org' target='_blank'>Wikipedia</a>
+        <a class='engine-chip" + searchEngineGithub + @"' href='black://setsearch?engine=github'>GitHub</a>
+        <a class='engine-chip" + searchEngineWiki + @"' href='black://setsearch?engine=wikipedia'>Wikipedia</a>
+        <a class='engine-chip" + searchEngineStartpage + @"' href='black://setsearch?engine=startpage'>Startpage</a>
       </div>
     </form>
+  </div>
+
+  <!-- Full Browser Controls & Theme Switcher Strip -->
+  <div class='command-strip'>
+    <a class='action-pill' href='black://new-private' title='Open Private Tab (Ctrl+Shift+P)'>&#x1F575;&#xFE0F; Private Tab</a>
+    <a class='action-pill' href='black://reopen-tab' title='Reopen Last Closed Tab (Ctrl+Shift+T)'>&#x21A9;&#xFE0F; Reopen Tab</a>
+    <a class='action-pill' href='black://toggle-sidebar' title='Toggle Quick Sidebar (Ctrl+Shift+B)'>&#x1F4C1; Sidebar</a>
+    <a class='action-pill' href='black://toggle-theme' title='Toggle Dark / Light Theme (Ctrl+Shift+D)'>" + (isDarkMode ? "&#x2600;&#xFE0F; Light Mode" : "&#x1F319; Dark Mode") + @"</a>
+    <a class='action-pill' href='black://cycle-eyecare' title='Cycle Eye Care Blue-Light Filter (Ctrl+Shift+E)'>&#x1F441;&#xFE0F; Eye Care</a>
+    <a class='action-pill" + (adShieldEnabled ? " on" : "") + @"' href='black://toggle-adshield' title='Pause or resume AdShield'>" + (adShieldEnabled ? "&#x1F6E1;&#xFE0F; AdShield ON" : "&#x23F8;&#xFE0F; AdShield OFF") + @"</a>
+    <a class='action-pill' href='black://qr' title='Generate QR Code for Current Page'>&#x1F4F1; QR</a>
+    <a class='action-pill' href='black://screenshot' title='Capture Viewport Screenshot'>&#x1F4F8; Capture</a>
+    <a class='action-pill' href='black://set-default' title='Set Black Firefox as Default Windows Browser'>&#x1F310; Set Default</a>
+    <span class='strip-sep'></span>
+    <div class='theme-pills' title='New Tab Wallpaper Theme'>
+      <a class='theme-pill" + (selectedBg == "aurora" ? " active" : "") + @"' href='black://setbg?bg=aurora'>Aurora</a>
+      <a class='theme-pill" + (selectedBg == "cyberpunk" ? " active" : "") + @"' href='black://setbg?bg=cyberpunk'>Cyberpunk</a>
+      <a class='theme-pill" + (selectedBg == "nebula" ? " active" : "") + @"' href='black://setbg?bg=nebula'>Nebula</a>
+      <a class='theme-pill" + (selectedBg == "obsidian" ? " active" : "") + @"' href='black://setbg?bg=obsidian'>Obsidian</a>
+      <a class='theme-pill" + (selectedBg == "light" ? " active" : "") + @"' href='black://setbg?bg=light'>Light</a>
+    </div>
   </div>
 
   <!-- Shortcuts Section -->
@@ -1174,7 +1479,24 @@ body {
   <!-- Dashboard Grid -->
   <div class='dashboard-grid'>
 
-    <!-- Scratchpad Widget -->
+    <!-- Jump Back In: Recent History & Bookmarks -->
+    <div class='dash-card'>
+      <div class='card-header'>
+        <div class='card-title'>&#x1F552; Jump Back In</div>
+        <div class='recent-tabs'>
+          <button type='button' class='tab-btn active' id='tabBtnRecent' onclick='switchJumpTab(&quot;recent&quot;)'>Recent</button>
+          <button type='button' class='tab-btn' id='tabBtnBookmarks' onclick='switchJumpTab(&quot;bookmarks&quot;)'>Bookmarks</button>
+        </div>
+      </div>
+      <div class='recent-list' id='jumpRecentPane'>" + recentHistSb.ToString() + @"</div>
+      <div class='recent-list' id='jumpBookmarksPane' style='display:none;'>" + recentBmSb.ToString() + @"</div>
+      <div class='sec-footer'>
+        <a class='sec-footer-link' href='black://history'>All History (" + allHistory.Count + @")</a>
+        <a class='sec-footer-link' href='black://bookmarks'>All Bookmarks (" + allBookmarks.Count + @")</a>
+      </div>
+    </div>
+
+    <!-- Scratchpad Widget (Synced with Dark Notes) -->
     <div class='dash-card' style='" + (SettingsStore.ShowNotes ? "" : "display:none;") + @"'>
       <div class='card-header'>
         <div class='card-title'>&#x1F4DD; Persistent Quick Notes</div>
@@ -1183,10 +1505,10 @@ body {
           <button class='btn-mini' onclick='clearScratchpad()'>&#x1F5D1;&#xFE0F; Clear</button>
         </div>
       </div>
-      <textarea class='scratchpad-area' id='scratchpad' placeholder='Type instant notes, prompts, or code snippets (stored locally)...'></textarea>
+      <textarea class='scratchpad-area' id='scratchpad' placeholder='Type instant notes, prompts, or snippets (synced with Ctrl+Shift+N Dark Notes)...'>" + SimpleHtmlEncode(syncedNotesText) + @"</textarea>
       <div class='scratchpad-footer'>
-        <span id='scratchCount'>0 characters</span>
-        <span>&#x1F512; 100% Local Device Storage</span>
+        <span id='scratchCount'>" + syncedNotesText.Length + @" characters</span>
+        <span>&#x1F512; Synced Local Notes (dark_notes.txt)</span>
       </div>
     </div>
 
@@ -1195,77 +1517,77 @@ body {
       <div class='card-header'>
         <div class='card-title'>&#x1F6E1;&#xFE0F; Security &amp; Architecture Status</div>
         <div class='card-actions'>
-          <a class='btn-mini' href='black://passwords' style='text-decoration:none;'>&#x1F510; Passwords</a>
+          <a class='btn-mini' href='black://passwords' style='text-decoration:none;'>&#x1F510; Vault</a>
           <a class='btn-mini' href='black://cookies' style='text-decoration:none;'>&#x1F36A; Cookies</a>
           <a class='btn-mini' href='black://about' style='text-decoration:none;'>&#x2139;&#xFE0F; About</a>
         </div>
       </div>
       <div class='security-grid'>
-        <div class='sec-pill'>
-          <div class='sec-pill-title'><span class='sec-dot'></span>&#x1F6E1;&#xFE0F; 3-Layer AdShield</div>
-          <div class='sec-pill-sub'>Zero trackers &amp; fast loading</div>
-        </div>
-        <div class='sec-pill'>
-          <div class='sec-pill-title'><span class='sec-dot'></span>&#x1F510; Windows DPAPI</div>
-          <div class='sec-pill-sub'>Hardware-backed password vault</div>
-        </div>
-        <div class='sec-pill'>
-          <div class='sec-pill-title'><span class='sec-dot'></span>&#x1F512; HTTPS-First Engine</div>
-          <div class='sec-pill-sub'>Strict TLS 1.2+ upgrade protocol</div>
-        </div>
+        <a class='sec-pill' href='black://toggle-adshield' style='text-decoration:none;'>
+          <div class='sec-pill-title'><span class='sec-dot" + (adShieldEnabled ? "" : " off") + @"'></span>&#x1F6E1;&#xFE0F; 3-Layer AdShield</div>
+          <div class='sec-pill-sub'>" + (adShieldEnabled ? ("Active (" + disabledSitesCount + " site exceptions)") : "Paused globally — click to enable") + @"</div>
+        </a>
+        <a class='sec-pill' href='black://passwords' style='text-decoration:none;'>
+          <div class='sec-pill-title'><span class='sec-dot'></span>&#x1F510; Windows DPAPI Vault</div>
+          <div class='sec-pill-sub'>" + allPasswords.Count + @" encrypted credentials</div>
+        </a>
+        <a class='sec-pill' href='black://toggle-https' style='text-decoration:none;'>
+          <div class='sec-pill-title'><span class='sec-dot" + (httpsFirst ? "" : " off") + @"'></span>&#x1F512; HTTPS-First Engine</div>
+          <div class='sec-pill-sub'>" + (httpsFirst ? "Auto-upgrading plain HTTP" : "Optional — click to enable") + @"</div>
+        </a>
         <div class='sec-pill'>
           <div class='sec-pill-title'><span class='sec-dot'></span>&#x26A1; Zero Cloud Telemetry</div>
-          <div class='sec-pill-sub'>All browsing stays on this PC</div>
+          <div class='sec-pill-sub'>100% local %LOCALAPPDATA% profile</div>
         </div>
         <div class='sec-pill'>
           <div class='sec-pill-title'><span class='sec-dot'></span>&#x1F9E0; LRU Tab Sentinel</div>
-          <div class='sec-pill-sub'>Sub-60MB background suspension</div>
+          <div class='sec-pill-sub'>Audio-aware background sleep</div>
         </div>
-        <div class='sec-pill'>
-          <div class='sec-pill-title'><span class='sec-dot'></span>&#x1F36A; Local Session Guard</div>
-          <div class='sec-pill-sub'>Full user-controlled sessions</div>
-        </div>
+        <a class='sec-pill' href='black://settings' style='text-decoration:none;'>
+          <div class='sec-pill-title'><span class='sec-dot" + (restoreSession ? "" : " off") + @"'></span>&#x1F36A; Session Restore</div>
+          <div class='sec-pill-sub'>" + (restoreSession ? "Restores open tabs on launch" : "Fresh session on launch") + @"</div>
+        </a>
       </div>
       <div class='sec-footer'>
-        <span>&#x1F7E2; All Security Modules Operational</span>
+        <span>&#x1F7E2; " + secActiveCount + @"/6 Privacy Controls Active</span>
         <a class='sec-footer-link' href='black://about'>Architecture PRD &bull; MIT License</a>
       </div>
     </div>
 
-    <!-- Real-Time Engine Telemetry & Performance -->
+    <!-- Live Engine Telemetry & Performance -->
     <div class='dash-card' style='" + (SettingsStore.ShowTelemetry ? "" : "display:none;") + @"'>
       <div class='card-header'>
-        <div class='card-title'>&#x26A1; Engine &amp; RAM Telemetry</div>
+        <div class='card-title'>&#x26A1; Live Engine Telemetry</div>
         <div class='card-actions'>
           <a class='btn-mini' href='black://optimize-memory' style='text-decoration:none;'>&#x1F9F9; Purge RAM</a>
-          <a class='btn-mini' href='black://about' style='text-decoration:none;'>&#x1F4BB; Specs</a>
+          <a class='btn-mini' href='black://check-updates' style='text-decoration:none;'>&#x1F680; Updates</a>
         </div>
       </div>
       <div class='telemetry-grid'>
         <div class='tel-item'>
           <div class='tel-label'>&#x1F9E0; Process Memory</div>
-          <div class='tel-value'>~48 MB</div>
-          <div class='tel-bar-bg'><div class='tel-bar-fill' style='width:24%;'></div></div>
+          <div class='tel-value'>" + ramMb + @" MB</div>
+          <div class='tel-bar-bg'><div class='tel-bar-fill' style='width:" + ramPct + @"%;'></div></div>
         </div>
         <div class='tel-item'>
-          <div class='tel-label'>&#x1F6E1;&#xFE0F; Trackers Blocked</div>
-          <div class='tel-value'>Active</div>
-          <div class='tel-bar-bg'><div class='tel-bar-fill' style='width:95%;background:var(--accent-emerald);'></div></div>
+          <div class='tel-label'>&#x1F6E1;&#xFE0F; Session Ads Blocked</div>
+          <div class='tel-value'>" + blockedAds + @"</div>
+          <div class='tel-bar-bg'><div class='tel-bar-fill' style='width:" + (adShieldEnabled ? "95%" : "20%") + @";background:" + (adShieldEnabled ? "var(--accent-emerald)" : "#f59e0b") + @";'></div></div>
         </div>
         <div class='tel-item'>
           <div class='tel-label'>&#x2699;&#xFE0F; Runtime Core</div>
-          <div class='tel-value'>WebView2 x64</div>
+          <div class='tel-value'>" + SimpleHtmlEncode(wv2Short) + @"</div>
           <div class='tel-sub'>Evergreen Chromium</div>
         </div>
         <div class='tel-item'>
-          <div class='tel-label'>&#x1F310; Network Guard</div>
-          <div class='tel-value'>Socket Level</div>
-          <div class='tel-sub'>Bloom Filter Dropped</div>
+          <div class='tel-label'>&#x1F9E9; Local Library</div>
+          <div class='tel-value'>" + allExtensions.Count + @" Ext &bull; " + downloadsCount + @" DL</div>
+          <div class='tel-sub'>Unpacked &amp; Managed</div>
         </div>
       </div>
       <div class='sec-footer'>
-        <span>&#x1F30C; Sub-60MB Ultra Low Overhead</span>
-        <a class='sec-footer-link' href='black://set-default'>Default Browser &bull; Win 11</a>
+        <span>&#x1F30C; Live Process Telemetry</span>
+        <a class='sec-footer-link' href='black://set-default'>Default Browser &bull; Win 10/11</a>
       </div>
     </div>
 
@@ -1273,25 +1595,32 @@ body {
 
   <!-- Quick Hub Links -->
   <div class='hub-strip'>
-    <a class='hub-card' href='https://aistudio.google.com' target='_blank'>
-      <div class='hub-icon'>&#x2728;</div>
-      <div>
-        <div class='hub-title'>Google AI Studio</div>
-        <div class='hub-desc'>Gemini 2.5 Pro workspace</div>
-      </div>
-    </a>
     <a class='hub-card' href='black://extensions'>
       <div class='hub-icon'>&#x1F9E9;</div>
       <div>
         <div class='hub-title'>Extension Manager</div>
-        <div class='hub-desc'>Load unpacked extensions</div>
+        <div class='hub-desc'>" + allExtensions.Count + @" installed &bull; unpacked MV2</div>
+      </div>
+    </a>
+    <a class='hub-card' href='black://downloads'>
+      <div class='hub-icon'>&#x1F4E5;</div>
+      <div>
+        <div class='hub-title'>Downloads Manager</div>
+        <div class='hub-desc'>" + downloadsCount + @" recent files saved locally</div>
+      </div>
+    </a>
+    <a class='hub-card' href='black://settings'>
+      <div class='hub-icon'>&#x2699;&#xFE0F;</div>
+      <div>
+        <div class='hub-title'>Browser Preferences</div>
+        <div class='hub-desc'>Appearance, privacy &amp; search</div>
       </div>
     </a>
     <a class='hub-card' href='black://doc-prd'>
       <div class='hub-icon'>&#x1F4D6;</div>
       <div>
-        <div class='hub-title'>Architecture PRD</div>
-        <div class='hub-desc'>Vibe Coding templates</div>
+        <div class='hub-title'>Architecture Docs</div>
+        <div class='hub-desc'>PRD, App Flow &amp; UI specs</div>
       </div>
     </a>
   </div>
@@ -1324,16 +1653,37 @@ body {
       <div class='sc-item'><span class='sc-key'>Ctrl + H</span><span class='sc-desc'>History</span></div>
       <div class='sc-item'><span class='sc-key'>Ctrl + J</span><span class='sc-desc'>Downloads</span></div>
       <div class='sc-item'><span class='sc-key'>Ctrl + Shift + B</span><span class='sc-desc'>Toggle Sidebar</span></div>
+      <div class='sc-item'><span class='sc-key'>Ctrl + Shift + D</span><span class='sc-desc'>Dark / Light Theme</span></div>
+      <div class='sc-item'><span class='sc-key'>Ctrl + Shift + E</span><span class='sc-desc'>Cycle Eye Care Filter</span></div>
       <div class='sc-item'><span class='sc-key'>Ctrl + Shift + R</span><span class='sc-desc'>Reader Mode</span></div>
       <div class='sc-item'><span class='sc-key'>/</span><span class='sc-desc'>Focus Search</span></div>
       <div class='sc-item'><span class='sc-key'>?</span><span class='sc-desc'>Shortcuts Guide</span></div>
       <div class='sc-item'><span class='sc-key'>F11</span><span class='sc-desc'>Fullscreen</span></div>
-      <div class='sc-item'><span class='sc-key'>F12</span><span class='sc-desc'>DevTools</span></div>
     </div>
   </div>
 </div>
 
 <script>
+// Jump-Back-In Tab Switcher
+function switchJumpTab(mode) {
+  var rec = document.getElementById('jumpRecentPane');
+  var bms = document.getElementById('jumpBookmarksPane');
+  var bRec = document.getElementById('tabBtnRecent');
+  var bBm = document.getElementById('tabBtnBookmarks');
+  if (!rec || !bms) return;
+  if (mode === 'bookmarks') {
+    rec.style.display = 'none';
+    bms.style.display = 'flex';
+    if (bRec) bRec.classList.remove('active');
+    if (bBm) bBm.classList.add('active');
+  } else {
+    rec.style.display = 'flex';
+    bms.style.display = 'none';
+    if (bRec) bRec.classList.add('active');
+    if (bBm) bBm.classList.remove('active');
+  }
+}
+
 // Live Clock & Greeting
 function pad(n){ return n < 10 ? '0' + n : '' + n; }
 function updateClock() {
@@ -1359,12 +1709,30 @@ updateClock();
 setInterval(updateClock, 1000);
 
 // Search Functionality
+function removeDial(ev, btn) {
+  ev.preventDefault();
+  ev.stopPropagation();
+  var wrap = btn.closest('.sh-tile-wrapper');
+  if (!wrap) return;
+  var title = wrap.getAttribute('data-rawtitle') || 'shortcut';
+  var url = wrap.getAttribute('data-rawurl') || '';
+  if (confirm('Remove shortcut: ' + title + '?')) {
+    location.href = 'black://removedial?url=' + encodeURIComponent(url);
+  }
+}
+
 var currentEngine = '" + currentEngine + @"';
 var ENGINES = {
   google: 'https://www.google.com/search?q=',
   duckduckgo: 'https://duckduckgo.com/?q=',
   bing: 'https://www.bing.com/search?q=',
-  youtube: 'https://www.youtube.com/results?search_query='
+  brave: 'https://search.brave.com/search?q=',
+  youtube: 'https://www.youtube.com/results?search_query=',
+  github: 'https://github.com/search?q=',
+  wikipedia: 'https://en.wikipedia.org/wiki/Special:Search?search=',
+  startpage: 'https://www.startpage.com/sp/search?query=',
+  yahoo: 'https://search.yahoo.com/search?p=',
+  ecosia: 'https://www.ecosia.org/search?q='
 };
 
 function doSearch(e) {
@@ -1379,22 +1747,39 @@ function doSearch(e) {
   return false;
 }
 
-// Scratchpad Local Persistence (Safe Storage)
+// Scratchpad Synced Local Persistence (dark_notes.txt + localStorage fallback)
 function safeGetStorage(k) { try { return window.localStorage ? window.localStorage.getItem(k) : null; } catch(e) { return null; } }
 function safeSetStorage(k, v) { try { if (window.localStorage) window.localStorage.setItem(k, v); } catch(e) {} }
 function safeRemoveStorage(k) { try { if (window.localStorage) window.localStorage.removeItem(k); } catch(e) {} }
 
+function syncNotesToHost(val) {
+  safeSetStorage('bf_quick_notes', val);
+  try {
+    if (window.chrome && window.chrome.webview) {
+      window.chrome.webview.postMessage('notes:save:' + val);
+    }
+  } catch(e) {}
+}
+
 var sp = document.getElementById('scratchpad');
 var spCount = document.getElementById('scratchCount');
+var spSyncTimer = null;
 if (sp) {
-  var saved = safeGetStorage('bf_quick_notes');
-  if (saved) {
-    sp.value = saved;
-    if (spCount) spCount.textContent = saved.length + ' characters';
+  if (!sp.value) {
+    var saved = safeGetStorage('bf_quick_notes');
+    if (saved) {
+      sp.value = saved;
+      syncNotesToHost(saved);
+    }
+  } else {
+    safeSetStorage('bf_quick_notes', sp.value);
   }
+  if (spCount) spCount.textContent = sp.value.length + ' characters';
   sp.addEventListener('input', function() {
     safeSetStorage('bf_quick_notes', sp.value);
     if (spCount) spCount.textContent = sp.value.length + ' characters';
+    clearTimeout(spSyncTimer);
+    spSyncTimer = setTimeout(function() { syncNotesToHost(sp.value); }, 250);
   });
 }
 
@@ -1415,6 +1800,7 @@ function clearScratchpad() {
   if (confirm('Clear scratchpad notes?')) {
     sp.value = '';
     safeRemoveStorage('bf_quick_notes');
+    syncNotesToHost('');
     if (spCount) spCount.textContent = '0 characters';
   }
 }
@@ -1444,6 +1830,8 @@ window.addEventListener('keydown', function(e) {
 
 // Particle Canvas Animation
 (function initParticles() {
+  var animationsEnabled = " + (SettingsStore.AnimationsEnabled ? "true" : "false") + @";
+  if (!animationsEnabled) return;
   var canvas = document.getElementById('particleCanvas');
   if (!canvas) return;
   var ctx = canvas.getContext('2d');
@@ -1470,6 +1858,10 @@ window.addEventListener('keydown', function(e) {
   }
 
   function draw() {
+    if (document.hidden) {
+      setTimeout(function() { requestAnimationFrame(draw); }, 500);
+      return;
+    }
     ctx.clearRect(0, 0, width, height);
     for (var i = 0; i < particles.length; i++) {
       var p = particles[i];
@@ -1513,6 +1905,14 @@ window.addEventListener('keydown', function(e) {
 
         public static string GetSpeedDialFilePath(bool isDarkMode)
         {
+            string key = BuildSpeedDialKey(isDarkMode);
+            if (!string.IsNullOrEmpty(_cachedFilePath) && _cachedFileKey == key)
+            {
+                string checkPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "black-webview2", "speeddial.html");
+                if (File.Exists(checkPath)) return _cachedFilePath;
+            }
             string html = GetHtml(isDarkMode);
             try
             {
@@ -1524,6 +1924,7 @@ window.addEventListener('keydown', function(e) {
 
                 string filePath = Path.Combine(folder, "speeddial.html");
                 File.WriteAllText(filePath, html, Encoding.UTF8);
+                _cachedFileKey = key;
                 _cachedFilePath = "file:///" + filePath.Replace("\\", "/");
                 return _cachedFilePath;
             }
@@ -1909,13 +2310,10 @@ window.addEventListener('keydown', function(e) {
             sb.Append("<meta charset='utf-8'>\n");
             sb.Append("<meta name='viewport' content='width=device-width, initial-scale=1'>\n");
             sb.Append("<title>" + SimpleHtmlEncode(title) + "</title>\n");
-            sb.Append("<link rel='preconnect' href='https://fonts.googleapis.com'>\n");
-            sb.Append("<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>\n");
-            sb.Append("<link href='https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700;800&display=swap' rel='stylesheet'>\n");
 
             sb.Append(@"<style>
 *{margin:0;padding:0;box-sizing:border-box}
-:root{--bg:#06070f;--surf:rgba(255,255,255,0.04);--surf2:rgba(255,255,255,0.07);--brd:rgba(255,255,255,0.08);--brd2:rgba(255,255,255,0.14);--txt:#e2e8f0;--dim:#64748b;--muted:#94a3b8;--accent:" + color + @";--al:" + colorLight + @";--mono:'JetBrains Mono',monospace;--font:'Inter','Segoe UI',sans-serif}
+:root{--bg:#06070f;--surf:rgba(255,255,255,0.04);--surf2:rgba(255,255,255,0.07);--brd:rgba(255,255,255,0.08);--brd2:rgba(255,255,255,0.14);--txt:#e2e8f0;--dim:#64748b;--muted:#94a3b8;--accent:" + color + @";--al:" + colorLight + @";--mono:'Cascadia Code','Consolas',monospace;--font:'Segoe UI Variable Display','Segoe UI',system-ui,sans-serif}
 html,body{min-height:100%;background:var(--bg);font-family:var(--font);color:var(--txt);-webkit-font-smoothing:antialiased;overflow-x:hidden}
 .bg-orbs{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
 .orb{position:absolute;border-radius:50%;filter:blur(120px);opacity:0.1;animation:oF 20s ease-in-out infinite alternate}

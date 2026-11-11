@@ -72,16 +72,30 @@ namespace BlackBrowser
         public static void AddCustomDial(string title, string url)
         {
             if (string.IsNullOrWhiteSpace(url)) return;
+            string trimmedUrl = url.Trim();
+            if (!trimmedUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+                !trimmedUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                if (trimmedUrl.IndexOf(':') >= 0) return; // reject javascript:, data:, etc.
+                trimmedUrl = "https://" + trimmedUrl;
+            }
+            Uri parsed;
+            if (!Uri.TryCreate(trimmedUrl, UriKind.Absolute, out parsed) ||
+                (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps))
+                return;
+
+            string safeTitle = (title ?? "").Trim();
+            if (safeTitle.Length == 0) safeTitle = parsed.Host;
 
             lock (fileLock)
             {
-                string iconText = title.Length >= 2 ? title.Substring(0, 2).ToUpper() : title.ToUpper();
-                if (title.Length == 0) iconText = "🌐";
+                string iconText = safeTitle.Length >= 2 ? safeTitle.Substring(0, 2).ToUpperInvariant() : safeTitle.ToUpperInvariant();
+                if (iconText.Length == 0) iconText = "W";
 
                 customList.Add(new CustomDialItem
                 {
-                    Title = string.IsNullOrWhiteSpace(title) ? url : title,
-                    Url = url.StartsWith("http") ? url : "https://" + url,
+                    Title = safeTitle,
+                    Url = parsed.AbsoluteUri,
                     IconText = iconText,
                     BgColor = "#e8f0fe",
                     FgColor = "#1a73e8"

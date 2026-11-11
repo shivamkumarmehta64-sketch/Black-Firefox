@@ -42,29 +42,26 @@ namespace BlackBrowser
 "<meta charset='utf-8'>\n" +
 "<meta name='viewport' content='width=device-width, initial-scale=1'>\n" +
 "<title>" + HtmlEncode(title) + " — Black Firefox</title>\n" +
-"<link rel='preconnect' href='https://fonts.googleapis.com'>\n" +
-"<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>\n" +
-"<link href='https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap' rel='stylesheet'>\n" +
 "<style>\n" +
 "*{margin:0;padding:0;box-sizing:border-box}\n" +
-"body{background:" + bg + ";color:" + textClr + ";font-family:'Inter',-apple-system,sans-serif;line-height:1.6;min-height:100vh;padding:32px 20px}\n" +
+"body{background:" + bg + ";color:" + textClr + ";font-family:'Segoe UI Variable Display','Segoe UI',system-ui,-apple-system,sans-serif;line-height:1.6;min-height:100vh;padding:32px 20px}\n" +
 ".container{max-width:920px;margin:0 auto}\n" +
 ".header{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid " + borderClr + "}\n" +
 ".brand{display:flex;align-items:center;gap:14px}\n" +
 ".brand-icon{width:48px;height:48px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 4px 20px rgba(59,130,246,0.4)}\n" +
-".brand-title{font-family:'Outfit',sans-serif;font-size:22px;font-weight:800;background:linear-gradient(90deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}\n" +
+".brand-title{font-family:'Segoe UI Variable Display','Segoe UI',sans-serif;font-size:22px;font-weight:800;background:linear-gradient(90deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}\n" +
 ".brand-sub{font-size:12px;color:" + textMuted + ";font-weight:600;letter-spacing:1px;text-transform:uppercase}\n" +
 ".nav{display:flex;gap:8px;background:" + navBg + ";padding:4px;border-radius:12px;border:1px solid " + borderClr + "}\n" +
 ".nav-item{padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;color:" + textMuted + ";text-decoration:none;transition:all 0.2s ease}\n" +
 ".nav-item:hover{color:" + textClr + ";background:" + hoverBg + "}\n" +
 ".nav-item.active{color:#ffffff;background:linear-gradient(135deg,#3b82f6,#6366f1);box-shadow:0 2px 10px rgba(59,130,246,0.3)}\n" +
 ".card{background:" + cardBg + ";border:1px solid " + borderClr + ";border-radius:20px;padding:36px;backdrop-filter:blur(16px);box-shadow:0 8px 32px rgba(0,0,0,0.2)}\n" +
-".page-title{font-family:'Outfit',sans-serif;font-size:28px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:12px}\n" +
+".page-title{font-family:'Segoe UI Variable Display','Segoe UI',sans-serif;font-size:28px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:12px}\n" +
 ".page-subtitle{color:" + textMuted + ";font-size:14px;margin-bottom:28px}\n" +
-"h2{font-family:'Outfit',sans-serif;font-size:18px;font-weight:700;margin:24px 0 10px 0;color:" + accentClr + "}\n" +
+"h2{font-family:'Segoe UI Variable Display','Segoe UI',sans-serif;font-size:18px;font-weight:700;margin:24px 0 10px 0;color:" + accentClr + "}\n" +
 "p,li{font-size:14.5px;color:" + textClr + ";margin-bottom:12px}\n" +
 "ul{padding-left:20px;margin-bottom:16px}\n" +
-".badge{display:inline-block;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;font-family:'JetBrains Mono',monospace;background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);margin-bottom:16px}\n" +
+".badge{display:inline-block;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;font-family:'Cascadia Code','Consolas',monospace;background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);margin-bottom:16px}\n" +
 ".footer{margin-top:32px;text-align:center;font-size:12px;color:" + textMuted + ";border-top:1px solid " + borderClr + ";padding-top:20px}\n" +
 "</style>\n" +
 "</head>\n" +

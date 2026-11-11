@@ -90,9 +90,12 @@ namespace BlackBrowser
             if (u.StartsWith("javascript:", StringComparison.OrdinalIgnoreCase) ||
                 u.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ||
                 u.StartsWith("vbscript:", StringComparison.OrdinalIgnoreCase) ||
-                u.StartsWith("black://", StringComparison.OrdinalIgnoreCase))
+                u.StartsWith("black://", StringComparison.OrdinalIgnoreCase) ||
+                u.StartsWith("https://black.internal", StringComparison.OrdinalIgnoreCase))
                 return false;
-            return true;
+            return u.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                   u.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+                   u.StartsWith("file://", StringComparison.OrdinalIgnoreCase);
         }
 
         public static bool ToggleBookmark(string title, string url)
@@ -186,7 +189,7 @@ namespace BlackBrowser
             if (!File.Exists(path)) return 0;
             string html = File.ReadAllText(path, Encoding.UTF8);
             var rx = new System.Text.RegularExpressions.Regex(
-                "<A\\s+HREF=\"([^\"]+)\"[^>]*>([^<]*)</A>",
+                "<A\\b[^>]*?\\bHREF\\s*=\\s*\"([^\"]+)\"[^>]*>([^<]*)</A>",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase);
             int count = 0;
             lock (fileLock)
@@ -243,10 +246,9 @@ namespace BlackBrowser
 <head>
 <meta charset='utf-8'>
 <title>Local Bookmarks — Black Firefox</title>
-<link href='https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&family=Inter:wght@400;500;600&display=swap' rel='stylesheet'>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Segoe UI Variable Display','Plus Jakarta Sans','Inter',sans-serif;background:" + bg + @";color:" + textColor + @";padding:36px 24px;max-width:880px;margin:0 auto;-webkit-font-smoothing:antialiased}
+body{font-family:'Segoe UI Variable Display','Segoe UI',system-ui,-apple-system,sans-serif;background:" + bg + @";color:" + textColor + @";padding:36px 24px;max-width:880px;margin:0 auto;-webkit-font-smoothing:antialiased}
 .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid " + border + @"}
 .title{font-size:26px;font-weight:700;background:linear-gradient(135deg, #f59e0b, #ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .sub{font-size:13.5px;color:" + muted + @";margin-top:6px}
@@ -279,7 +281,11 @@ function filterList(q){
     el.style.display = (title.indexOf(q) !== -1 || url.indexOf(q) !== -1) ? 'flex' : 'none';
   });
 }
-function removeBm(url, title){
+function removeBm(btn){
+  var item = btn.closest('.item');
+  if(!item) return;
+  var url = item.getAttribute('data-rawurl') || '';
+  var title = item.getAttribute('data-rawtitle') || '';
   if(confirm('Remove bookmark: ' + title + '?')){
     location.href = 'black://remove-bookmark?url=' + encodeURIComponent(url);
   }
@@ -311,21 +317,20 @@ function removeBm(url, title){
                 {
                     foreach (var item in bookmarksList)
                     {
+                        string rawUrl = IsSafeUrl(item.Url) ? item.Url : "#";
                         string safeTitle = System.Web.HttpUtility.HtmlEncode(item.Title ?? "");
-                        string safeUrl = System.Web.HttpUtility.HtmlEncode(item.Url ?? "");
+                        string safeUrl = System.Web.HttpUtility.HtmlEncode(rawUrl);
                         string safeTime = System.Web.HttpUtility.HtmlEncode(item.AddedDate ?? "");
-                        string jsUrl = (item.Url ?? "").Replace("\\", "\\\\").Replace("'", "\\'");
-                        string jsTitle = (item.Title ?? "").Replace("\\", "\\\\").Replace("'", "\\'");
 
                         sb.Append(@"
-<div class='item' data-title='" + safeTitle.ToLowerInvariant() + @"' data-url='" + safeUrl.ToLowerInvariant() + @"'>
+<div class='item' data-title='" + safeTitle.ToLowerInvariant() + @"' data-url='" + safeUrl.ToLowerInvariant() + @"' data-rawtitle='" + safeTitle + @"' data-rawurl='" + safeUrl + @"'>
   <a class='item-info' href='" + safeUrl + @"' style='text-decoration:none;'>
     <div class='item-title'>⭐ " + safeTitle + @"</div>
     <div class='item-url'>" + safeUrl + @"</div>
   </a>
   <div class='item-side'>
     <div class='item-time'>" + safeTime + @"</div>
-    <button class='btn-del' onclick='removeBm(""" + jsUrl + @""", """ + jsTitle + @""")'>🗑️ Remove</button>
+    <button type='button' class='btn-del' onclick='removeBm(this)'>🗑️ Remove</button>
   </div>
 </div>");
                     }

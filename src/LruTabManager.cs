@@ -67,11 +67,12 @@ namespace BlackBrowser
                 if (!_map.TryGetValue(page, out node)) return;
 
                 node.LastAccessed = DateTime.UtcNow;
-                if (node.IsSuspended && node.WebView != null && !node.WebView.IsDisposed)
+                if (node.WebView != null && !node.WebView.IsDisposed)
                 {
                     try
                     {
-                        if (node.WebView.CoreWebView2 != null)
+                        if (!node.WebView.Visible) node.WebView.Visible = true;
+                        if (node.IsSuspended && node.WebView.CoreWebView2 != null)
                         {
                             node.WebView.CoreWebView2.Resume();
                         }
@@ -137,8 +138,27 @@ namespace BlackBrowser
             {
                 if (node.WebView.CoreWebView2 != null)
                 {
-                    node.WebView.CoreWebView2.TrySuspendAsync();
-                    node.IsSuspended = true;
+                    // Never suspend tabs actively playing audio
+                    if (node.WebView.CoreWebView2.IsDocumentPlayingAudio) return;
+
+                    // WebView2 requires the control to be hidden before TrySuspendAsync succeeds
+                    if (node.WebView.Visible) node.WebView.Visible = false;
+
+                    var task = node.WebView.CoreWebView2.TrySuspendAsync();
+                    var uiScheduler = System.Threading.SynchronizationContext.Current != null
+                        ? System.Threading.Tasks.TaskScheduler.FromCurrentSynchronizationContext()
+                        : System.Threading.Tasks.TaskScheduler.Default;
+                    task.ContinueWith(t =>
+                    {
+                        try
+                        {
+                            if (!t.IsFaulted && !t.IsCanceled && t.Result)
+                            {
+                                node.IsSuspended = true;
+                            }
+                        }
+                        catch { }
+                    }, uiScheduler);
                 }
             }
             catch { }

@@ -19,6 +19,8 @@ namespace BlackBrowser
             }
         }
 
+        private int _mode = 0;
+
         public EyeCareOverlayForm()
         {
             this.FormBorderStyle = FormBorderStyle.None;
@@ -30,19 +32,43 @@ namespace BlackBrowser
             this.Opacity = 0.25;
         }
 
-        public void SetMode(int mode)
+        protected override bool ShowWithoutActivation
         {
+            get { return true; }
+        }
+
+        public void SyncToOwner(Form owner)
+        {
+            if (this.IsDisposed || owner == null || owner.IsDisposed) return;
+            if (_mode == 0 || !owner.Visible || owner.WindowState == FormWindowState.Minimized)
+            {
+                if (this.Visible) this.Hide();
+                return;
+            }
+            Rectangle targetBounds = owner.Bounds;
+            if (targetBounds.Width > 0 && targetBounds.Height > 0 && this.Bounds != targetBounds)
+            {
+                this.Bounds = targetBounds;
+            }
+            if (!this.Visible) this.Show();
+        }
+
+        public void SetMode(int mode, Form owner = null)
+        {
+            _mode = mode;
             if (mode == 1)
             {
                 this.BackColor = Color.FromArgb(255, 170, 0);
                 this.Opacity = 0.18;
-                this.Show();
+                if (owner != null) SyncToOwner(owner);
+                else this.Show();
             }
             else if (mode == 2)
             {
                 this.BackColor = Color.Black;
                 this.Opacity = 0.35;
-                this.Show();
+                if (owner != null) SyncToOwner(owner);
+                else this.Show();
             }
             else
             {

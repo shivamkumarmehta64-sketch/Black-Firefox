@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Web.WebView2.WinForms;
 using Microsoft.Web.WebView2.Core;
 
@@ -8,26 +10,57 @@ namespace BlackBrowser
 {
     public static class AdShieldEngine
     {
-        private static readonly string[] AdDomains = new string[]
+        private static readonly string[] AdDomainList = new string[]
         {
             "doubleclick.net", "googlesyndication.com", "googleadservices.com",
             "adservice.google.com", "adnxs.com", "rubiconproject.com",
             "pubmatic.com", "openx.net", "criteo.com", "taboola.com",
-            "outbrain.com", "scorecardresearch.com", "quantserve.com",
+            "outbrain.com", "scorecardresearch.com", "quantserve.com"
+        };
+
+        private static readonly string[] AdPathFragments = new string[]
+        {
             "/pagead/", "/api/stats/ads", "/ptracking", "/get_midroll_info"
         };
 
-        private static readonly BloomFilter _bloomFilter = new BloomFilter(100, 0.005);
+        private static readonly HashSet<string> AdDomainSet = new HashSet<string>(AdDomainList, StringComparer.OrdinalIgnoreCase);
+        private static readonly BloomFilter _bloomFilter = new BloomFilter(128, 0.005);
         private static bool _bloomInitialized = false;
+        private static readonly object _bloomLock = new object();
+        private static long _totalBlockedCount = 0;
+
+        public static long TotalBlockedCount
+        {
+            get { return Interlocked.Read(ref _totalBlockedCount); }
+        }
 
         private static void EnsureBloomFilter()
         {
             if (_bloomInitialized) return;
-            foreach (string d in AdDomains)
+            lock (_bloomLock)
             {
-                _bloomFilter.Add(d.Trim('/'));
+                if (_bloomInitialized) return;
+                foreach (string d in AdDomainList)
+                {
+                    _bloomFilter.Add(d);
+                }
+                _bloomInitialized = true;
             }
-            _bloomInitialized = true;
+        }
+
+        private static bool IsBlockedDomain(string host)
+        {
+            if (string.IsNullOrEmpty(host)) return false;
+            string cur = host;
+            while (!string.IsNullOrEmpty(cur))
+            {
+                if (_bloomFilter.MightContain(cur) && AdDomainSet.Contains(cur))
+                    return true;
+                int dot = cur.IndexOf('.');
+                if (dot < 0 || dot + 1 >= cur.Length) break;
+                cur = cur.Substring(dot + 1);
+            }
+            return false;
         }
 
         private static readonly string[] AllowedStreamDomains = new string[]
@@ -42,15 +75,18 @@ namespace BlackBrowser
                 if (window.__blackAdShieldInjected) return;
                 window.__blackAdShieldInjected = true;
 
-                // Set to false by the host when the user disables AdShield for this site.
+                // Never inject into internal browser pages
+                if (location.hostname === 'black.internal') return;
+
                 function shieldActive() { return window.__blackShieldEnabled !== false; }
 
-                // Layer 1: Hide all banner, inline, feed & player ad elements instantly
+                // Layer 1: Hide common banner, inline, feed & player ad elements
                 function injectCSS() {
+                    if (!shieldActive()) return;
                     if (document.getElementById('black-adshield-css')) return;
                     var style = document.createElement('style');
                     style.id = 'black-adshield-css';
-                    style.innerHTML = `
+                    style.textContent = `
                         .video-ads, .ytp-ad-module, .ytp-ad-overlay-container,
                         [id^='google_ads_'], .ad-container, .ad-wrapper, #masthead-ad, #player-ads,
                         ytd-promoted-video-renderer, ytd-display-ad-renderer, ytd-statement-banner-renderer,
@@ -60,51 +96,59 @@ namespace BlackBrowser
                             display: none !important; visibility: hidden !important; width: 0 !important; height: 0 !important; opacity: 0 !important; pointer-events: none !important;
                         }
                     `;
-                    (document.head || document.documentElement).appendChild(style);
+                    var root = document.head || document.documentElement;
+                    if (root) root.appendChild(style);
                 }
 
-                // Layer 2: API JSON Payload Stripper (Removes ad slots from YouTube API before player loads them)
+                injectCSS();
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', injectCSS);
+                }
+
+                // Layers 2 & 3: YouTube-only payload stripper & reactive video ad skipper
+                var isYouTube = /(^|\.)youtube\.com$|(^|\.)youtube-nocookie\.com$|(^|\.)youtu\.be$/.test(location.hostname);
+                if (!isYouTube) return;
+
                 try {
-                    const adKeys = [
-                        'adPlacements','playerAds','adSlots','promotedVideoRenderer',
-                        'inlineAdLayoutRenderer','carouselAdRenderer','searchVideoRenderer',
-                        'adBreak','adBreakBegin','adBreakEnd','adBreakLength',
-                        'adBreakOffset','adBreakType','adPlacement','adInfoRenderer',
-                        'adFeedbackDialog','adVideoId','adVideoIds','adBreakIndex',
-                        'interstitialPlayerConfig','interstitialPlayerOverlay','midroll',
-                        'postroll','preroll','paidVideoOverlay','adRenderer',
-                        'slotRenderer','hotkeyAd','adServiceEndpoint','adLayoutEndpoint',
-                        'adSlot','adBadge','adBadgeText','adBadgePosition','adHint',
-                        'adHintText','adCaption','adCaptionText','adOverlay',
-                        'adOverlayRenderer','adOverlayStyle','adTriggerType',
-                        'adTriggerValue','adTriggerPosition','adTriggerOffset'
-                    ];
+                    const adKeys = {
+                        adPlacements:1, playerAds:1, adSlots:1, promotedVideoRenderer:1,
+                        inlineAdLayoutRenderer:1, carouselAdRenderer:1, searchVideoRenderer:1,
+                        adBreak:1, adBreakBegin:1, adBreakEnd:1, adBreakLength:1,
+                        adBreakOffset:1, adBreakType:1, adPlacement:1, adInfoRenderer:1,
+                        adFeedbackDialog:1, adVideoId:1, adVideoIds:1, adBreakIndex:1,
+                        interstitialPlayerConfig:1, interstitialPlayerOverlay:1, midroll:1,
+                        postroll:1, preroll:1, paidVideoOverlay:1, adRenderer:1,
+                        slotRenderer:1, hotkeyAd:1, adServiceEndpoint:1, adLayoutEndpoint:1,
+                        adSlot:1, adBadge:1, adBadgeText:1, adBadgePosition:1, adHint:1,
+                        adHintText:1, adCaption:1, adCaptionText:1, adOverlay:1,
+                        adOverlayRenderer:1, adOverlayStyle:1, adTriggerType:1,
+                        adTriggerValue:1, adTriggerPosition:1, adTriggerOffset:1
+                    };
 
                     function stripAds(obj) {
                         if (!obj || typeof obj !== 'object') return;
                         if (Array.isArray(obj)) {
-                            obj.forEach(stripAds);
+                            for (var i = 0; i < obj.length; i++) stripAds(obj[i]);
                             return;
                         }
-                        Object.keys(obj).forEach(key => {
-                            if (adKeys.indexOf(key) !== -1) {
-                                delete obj[key];
+                        var keys = Object.keys(obj);
+                        for (var i = 0; i < keys.length; i++) {
+                            var k = keys[i];
+                            if (adKeys[k]) {
+                                delete obj[k];
                             } else {
-                                stripAds(obj[key]);
+                                stripAds(obj[k]);
                             }
-                        });
+                        }
                     }
 
                     const origParse = JSON.parse;
                     JSON.parse = function(t, r) {
-                        try {
-                            const obj = origParse.call(this, t, r);
-                            if (window.__blackShieldEnabled === false) return obj;
-                            if (obj && typeof obj === 'object') stripAds(obj);
-                            return obj;
-                        } catch(e) {
-                            return origParse.call(this, t, r);
+                        const obj = origParse.call(this, t, r);
+                        if (window.__blackShieldEnabled !== false && obj && typeof obj === 'object') {
+                            try { stripAds(obj); } catch(e) {}
                         }
+                        return obj;
                     };
 
                     const origFetch = window.fetch;
@@ -113,7 +157,7 @@ namespace BlackBrowser
                             return origFetch.apply(this, arguments).then(function(r) {
                                 const url = typeof i === 'string' ? i : (i && i.url ? i.url : '');
                                 if (window.__blackShieldEnabled === false) return r;
-                                if (url.includes('youtubei.googleapis.com') || url.includes('/youtubei/v1/')) {
+                                if (url.indexOf('youtubei.googleapis.com') !== -1 || url.indexOf('/youtubei/v1/') !== -1) {
                                     return r.clone().json().then(function(d) {
                                         stripAds(d);
                                         return new Response(JSON.stringify(d), { status: r.status, headers: r.headers });
@@ -125,13 +169,9 @@ namespace BlackBrowser
                     }
                 } catch(e) {}
 
-                // Layer 3: Ultra-Fast 200ms Video Ad Mute-Skipper & Auto-Clicker
-                injectCSS();
-                if (document.readyState === 'loading') {
-                    document.addEventListener('DOMContentLoaded', injectCSS);
-                }
-
-                setInterval(function() {
+                var adCheckScheduled = false;
+                function handleYouTubeAds() {
+                    adCheckScheduled = false;
                     try {
                         if (!shieldActive()) {
                             var cssEl = document.getElementById('black-adshield-css');
@@ -140,56 +180,89 @@ namespace BlackBrowser
                         }
                         injectCSS();
                         var skipBtn = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button, .ytp-ad-skip-button-slot, .ytp-ad-skip-button-container button, .ytp-ad-text.ytp-ad-skip-button-text');
-                        if (skipBtn) {
-                            skipBtn.click();
-                        }
-                        var video = document.querySelector('video');
-                        if (video) {
-                            var adShowing = document.querySelector('.ad-showing, .ad-interrupting, .ytp-ad-player-overlay');
-                            if (adShowing) {
+                        if (skipBtn) skipBtn.click();
+
+                        var adShowing = document.querySelector('.ad-showing, .ad-interrupting, .ytp-ad-player-overlay');
+                        if (adShowing) {
+                            var video = document.querySelector('video');
+                            if (video) {
                                 video.muted = true;
                                 video.playbackRate = 16.0;
                                 if (isFinite(video.duration) && video.duration > 0 && video.currentTime < video.duration - 0.5) {
                                     video.currentTime = video.duration - 0.1;
                                 }
                             }
+                            // Only keep short polling alive while an ad is actively showing
+                            setTimeout(scheduleAdCheck, 180);
                         }
                         var overlay = document.querySelector('.ytp-ad-overlay-close-button');
                         if (overlay) overlay.click();
                     } catch(e) {}
-                }, 200);
+                }
+
+                function scheduleAdCheck() {
+                    if (adCheckScheduled) return;
+                    adCheckScheduled = true;
+                    setTimeout(handleYouTubeAds, 120);
+                }
+
+                try {
+                    var obs = new MutationObserver(scheduleAdCheck);
+                    var startObs = function() {
+                        if (document.body) {
+                            obs.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+                            handleYouTubeAds();
+                        }
+                    };
+                    if (document.body) startObs();
+                    else document.addEventListener('DOMContentLoaded', startObs);
+                } catch(e) {}
             })();
         ";
 
         public static string Script { get { return GlobalAdShieldScript; } }
 
-        public static async void AttachAdShield(WebView2 wv, Action onAdBlocked)
+        public static async Task AttachAdShield(WebView2 wv, Action onAdBlocked)
         {
             if (wv == null || wv.CoreWebView2 == null) return;
 
             string currentHost = "";
 
+            wv.CoreWebView2.NavigationStarting += (s, e) =>
+            {
+                if (!string.IsNullOrEmpty(e.Uri))
+                {
+                    string h = AdShieldState.GetHost(e.Uri);
+                    if (!string.IsNullOrEmpty(h)) currentHost = h;
+                }
+            };
+
             wv.CoreWebView2.SourceChanged += (s, e) =>
             {
-                if (wv.Source != null) currentHost = AdShieldState.GetHost(wv.Source.ToString());
+                if (wv.Source != null)
+                {
+                    string h = AdShieldState.GetHost(wv.Source.ToString());
+                    if (!string.IsNullOrEmpty(h)) currentHost = h;
+                }
             };
 
             // Network Layer Filtering
             EnsureBloomFilter();
             wv.CoreWebView2.WebResourceRequested += (sender, args) =>
             {
-                string uri = args.Request.Uri.ToLower();
+                string rawUri = args.Request.Uri ?? "";
+                string uri = rawUri.ToLowerInvariant();
 
-                // Never interfere with the top-level document (main frame)
-                // navigation or its redirect chain. Streaming/mirror sites
-                // frequently bounce through ad-looking URLs (googlesyndication,
-                // /pagead/, /ptracking, ...) before landing on the real page;
-                // replacing those responses with an empty 200 breaks the redirect.
+                // Never interfere with internal pages
+                if (uri.StartsWith("https://black.internal/", StringComparison.Ordinal))
+                    return;
+
+                // Never interfere with top-level/document navigation redirects
                 if (args.ResourceContext == CoreWebView2WebResourceContext.Document)
                     return;
 
-                // Per-site toggle: skip blocking when the user disabled AdShield for this host.
-                if (!AdShieldState.IsEnabled(currentHost))
+                // Global & per-site toggle: skip blocking when disabled.
+                if (!SettingsStore.AdShieldEnabled || !AdShieldState.IsEnabled(currentHost))
                     return;
 
                 // Allow media byte transfer from media CDNs
@@ -199,22 +272,41 @@ namespace BlackBrowser
                         return;
                 }
 
-                foreach (string domain in AdDomains)
+                bool blocked = false;
+                Uri parsed;
+                if (Uri.TryCreate(rawUri, UriKind.Absolute, out parsed))
                 {
-                    if (uri.Contains(domain))
-                    {
-                        args.Response = wv.CoreWebView2.Environment.CreateWebResourceResponse(
-                            null, 200, "OK", "Content-Type: text/plain");
+                    blocked = IsBlockedDomain(parsed.Host);
+                }
 
-                        if (onAdBlocked != null) onAdBlocked();
-                        break;
+                if (!blocked)
+                {
+                    foreach (string frag in AdPathFragments)
+                    {
+                        if (uri.Contains(frag))
+                        {
+                            blocked = true;
+                            break;
+                        }
                     }
+                }
+
+                if (blocked)
+                {
+                    args.Response = wv.CoreWebView2.Environment.CreateWebResourceResponse(
+                        null, 200, "OK", "Content-Type: text/plain");
+                    Interlocked.Increment(ref _totalBlockedCount);
+                    if (onAdBlocked != null) onAdBlocked();
                 }
             };
 
-            foreach (string domain in AdDomains)
+            foreach (string domain in AdDomainList)
             {
                 wv.CoreWebView2.AddWebResourceRequestedFilter("*" + domain + "*", CoreWebView2WebResourceContext.All);
+            }
+            foreach (string frag in AdPathFragments)
+            {
+                wv.CoreWebView2.AddWebResourceRequestedFilter("*" + frag + "*", CoreWebView2WebResourceContext.All);
             }
 
             // Document Created Injection (Ensures scripts are attached before DOM loads on every page/SPA frame)
@@ -229,7 +321,8 @@ namespace BlackBrowser
             {
                 try
                 {
-                    bool enabled = AdShieldState.IsEnabled(currentHost);
+                    if (wv.IsDisposed || wv.CoreWebView2 == null) return;
+                    bool enabled = SettingsStore.AdShieldEnabled && AdShieldState.IsEnabled(currentHost);
                     await wv.CoreWebView2.ExecuteScriptAsync(
                         "window.__blackShieldEnabled = " + (enabled ? "true" : "false") + ";");
                     if (enabled)
@@ -257,6 +350,11 @@ namespace BlackBrowser
                             DisabledSites.Add(line.Trim());
             }
             catch { }
+        }
+
+        public static int DisabledSitesCount
+        {
+            get { return DisabledSites.Count; }
         }
 
         public static bool IsEnabled(string host)

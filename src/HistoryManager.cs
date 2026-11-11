@@ -66,9 +66,12 @@ namespace BlackBrowser
             if (u.StartsWith("javascript:", StringComparison.OrdinalIgnoreCase) ||
                 u.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ||
                 u.StartsWith("vbscript:", StringComparison.OrdinalIgnoreCase) ||
-                u.StartsWith("black://", StringComparison.OrdinalIgnoreCase))
+                u.StartsWith("black://", StringComparison.OrdinalIgnoreCase) ||
+                u.StartsWith("https://black.internal", StringComparison.OrdinalIgnoreCase))
                 return false;
-            return true;
+            return u.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                   u.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+                   u.StartsWith("file://", StringComparison.OrdinalIgnoreCase);
         }
 
         public static void AddVisit(string title, string url)
@@ -232,10 +235,9 @@ namespace BlackBrowser
 <head>
 <meta charset='utf-8'>
 <title>Local Browsing History — Black Firefox</title>
-<link href='https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&family=Inter:wght@400;500;600&display=swap' rel='stylesheet'>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Segoe UI Variable Display','Plus Jakarta Sans','Inter',sans-serif;background:" + bg + @";color:" + textColor + @";padding:36px 24px;max-width:880px;margin:0 auto;-webkit-font-smoothing:antialiased}
+body{font-family:'Segoe UI Variable Display','Segoe UI',system-ui,-apple-system,sans-serif;background:" + bg + @";color:" + textColor + @";padding:36px 24px;max-width:880px;margin:0 auto;-webkit-font-smoothing:antialiased}
 .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid " + border + @"}
 .title{font-size:26px;font-weight:700;background:linear-gradient(135deg, #06b6d4, #9333ea);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .sub{font-size:13.5px;color:" + muted + @";margin-top:6px}
@@ -267,7 +269,10 @@ function filterList(q){
     el.style.display = (title.indexOf(q) !== -1 || url.indexOf(q) !== -1) ? 'flex' : 'none';
   });
 }
-function removeHist(url){
+function removeHist(btn){
+  var item = btn.closest('.item');
+  if(!item) return;
+  var url = item.getAttribute('data-rawurl') || '';
   if(confirm('Remove this entry from history?')){
     location.href = 'black://remove-history?url=' + encodeURIComponent(url);
   }
@@ -284,7 +289,7 @@ function clearAllHist(){
     <div class='title'>📜 Local Browsing History</div>
     <div class='sub'>✨ Anime Cyberpunk Theme • 100% Private • Stored Locally on Device</div>
   </div>
-  <div><button class='btn-clear' onclick='clearAllHist()'>🗑️ Clear All</button></div>
+  <div><button type='button' class='btn-clear' onclick='clearAllHist()'>🗑️ Clear All</button></div>
 </div>
 
 <input type='text' class='search-box' placeholder='🔍 Search browsing history by title or URL...' oninput='filterList(this.value)'>
@@ -301,20 +306,20 @@ function clearAllHist(){
                 {
                     foreach (var item in historyList)
                     {
+                        string rawUrl = IsSafeUrl(item.Url) ? item.Url : "#";
                         string safeTitle = System.Web.HttpUtility.HtmlEncode(item.Title ?? "");
-                        string safeUrl = System.Web.HttpUtility.HtmlEncode(item.Url ?? "");
+                        string safeUrl = System.Web.HttpUtility.HtmlEncode(rawUrl);
                         string safeTime = System.Web.HttpUtility.HtmlEncode(item.Timestamp ?? "");
-                        string jsUrl = (item.Url ?? "").Replace("\\", "\\\\").Replace("'", "\\'");
 
                         sb.Append(@"
-<div class='item' data-title='" + safeTitle.ToLowerInvariant() + @"' data-url='" + safeUrl.ToLowerInvariant() + @"'>
+<div class='item' data-title='" + safeTitle.ToLowerInvariant() + @"' data-url='" + safeUrl.ToLowerInvariant() + @"' data-rawurl='" + safeUrl + @"'>
   <a class='item-info' href='" + safeUrl + @"' style='text-decoration:none;'>
     <div class='item-title'>📜 " + safeTitle + @"</div>
     <div class='item-url'>" + safeUrl + @"</div>
   </a>
   <div class='item-side'>
     <div class='item-time'>" + safeTime + @"</div>
-    <button class='btn-del' onclick='removeHist(""" + jsUrl + @""")'>🗑️ Remove</button>
+    <button type='button' class='btn-del' onclick='removeHist(this)'>🗑️ Remove</button>
   </div>
 </div>");
                     }

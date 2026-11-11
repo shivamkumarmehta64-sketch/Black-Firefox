@@ -15,72 +15,6 @@ using Microsoft.Web.WebView2.WinForms;
 
 namespace BlackBrowser
 {
-    public class DarkTabControl : TabControl
-    {
-        public DarkTabControl()
-        {
-            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
-            DoubleBuffered = true;
-        }
-
-        protected override void WndProc(ref Message m)
-        {
-            if (m.Msg == 0x0014) // WM_ERASEBKGND
-            {
-                m.Result = (IntPtr)1;
-                return;
-            }
-
-            base.WndProc(ref m);
-
-            if (m.Msg == 0x000F) // WM_PAINT
-            {
-                try
-                {
-                    using (Graphics g = Graphics.FromHwnd(this.Handle))
-                    {
-                        int stripH = this.DisplayRectangle.Y > 0 ? this.DisplayRectangle.Y : 46;
-                        int rightEdge = 0;
-                        if (this.TabCount > 0)
-                        {
-                            Rectangle last = this.GetTabRect(this.TabCount - 1);
-                            rightEdge = last.Right;
-                        }
-
-                        Color bg = ChromePainter.IsDark ? Color.FromArgb(16, 16, 20) : Color.FromArgb(235, 236, 240);
-                        Color border = ChromePainter.IsDark ? Color.FromArgb(28, 28, 34) : Color.FromArgb(218, 220, 224);
-
-                        using (SolidBrush darkBrush = new SolidBrush(bg))
-                        {
-                            if (this.Width > rightEdge)
-                            {
-                                g.FillRectangle(darkBrush, rightEdge, 0, this.Width - rightEdge, stripH);
-                            }
-                            if (this.TabCount > 0)
-                            {
-                                Rectangle first = this.GetTabRect(0);
-                                if (first.Left > 0)
-                                {
-                                    g.FillRectangle(darkBrush, 0, 0, first.Left, stripH);
-                                }
-                            }
-                            else
-                            {
-                                g.FillRectangle(darkBrush, 0, 0, this.Width, stripH);
-                            }
-                        }
-
-                        using (Pen borderPen = new Pen(border, 1))
-                        {
-                            g.DrawLine(borderPen, 0, stripH - 1, this.Width, stripH - 1);
-                        }
-                    }
-                }
-                catch { }
-            }
-        }
-    }
-
     public class BrowserForm : Form
     {
         [DllImport("dwmapi.dll")]
@@ -138,7 +72,6 @@ namespace BlackBrowser
 
         private NotifyIcon trayIcon;
         private Timer gcTimer;
-        private Timer ramTimer;
         private Timer bannerTimer;
 
         private EyeCareOverlayForm eyeCareOverlay;
@@ -209,13 +142,19 @@ namespace BlackBrowser
         private ListView sidebarList;
         private bool sidebarVisible = false;
 
-        // Reader mode
+        // Reader mode & per-tab crash / internal page state
         private class TabMetadata
         {
             public bool ReaderActive = false;
             public string ReaderOriginalUrl = "";
+            public string ReaderHtml = "";
+            public DateTime LastProcessCrash = DateTime.MinValue;
         }
         private Dictionary<TabPage, TabMetadata> tabMetadata = new Dictionary<TabPage, TabMetadata>();
+
+        // Session-scoped permission decisions: key = "origin|PermissionKind"
+        private readonly Dictionary<string, CoreWebView2PermissionState> permissionDecisions =
+            new Dictionary<string, CoreWebView2PermissionState>(StringComparer.OrdinalIgnoreCase);
 
         private TabMetadata GetTabMetadata(TabPage page)
         {
@@ -248,37 +187,105 @@ namespace BlackBrowser
             }
         }
 
-        // Password save prompt
+        // Password save & autofill prompt
         private Panel pwPrompt;
         private Label pwPromptLabel;
         private Button pwSaveBtn;
         private Button pwSkipBtn;
-        private Tuple<string, string, string> pwCandidate;
+        private Tuple<WebView2, string, string, string> pwCandidate;
+        private bool pwPromptIsAutofill = false;
+
+        private static Color ParseAccentColor(string hex)
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(hex))
+                {
+                    hex = hex.Trim().TrimStart('#');
+                    if (hex.Length == 6)
+                    {
+                        return Color.FromArgb(
+                            Convert.ToInt32(hex.Substring(0, 2), 16),
+                            Convert.ToInt32(hex.Substring(2, 2), 16),
+                            Convert.ToInt32(hex.Substring(4, 2), 16));
+                    }
+                }
+            }
+            catch { }
+            return Color.FromArgb(12, 99, 232);
+        }
+
+        private string ParseLaunchTarget(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return null;
+            string arg = raw.Trim();
+            if (arg.Equals("--newwindow", StringComparison.OrdinalIgnoreCase) ||
+                arg.Equals("__SHOW__", StringComparison.Ordinal))
+                return null;
+            if (arg.IndexOf("music.youtube.com", StringComparison.OrdinalIgnoreCase) >= 0 || arg.Equals("--ytmusic", StringComparison.OrdinalIgnoreCase))
+                return "https://music.youtube.com";
+            if (arg.IndexOf("youtube.com", StringComparison.OrdinalIgnoreCase) >= 0 || arg.Equals("--youtube", StringComparison.OrdinalIgnoreCase))
+                return "https://www.youtube.com";
+            if (arg.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                arg.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+                arg.StartsWith("black://", StringComparison.OrdinalIgnoreCase) ||
+                arg.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+                return arg;
+            try
+            {
+                if (File.Exists(arg))
+                    return new Uri(Path.GetFullPath(arg)).AbsoluteUri;
+            }
+            catch { }
+            return null;
+        }
+
+        public void HandleExternalLaunchArg(string arg)
+        {
+            try
+            {
+                ShowMainWindow();
+                string target = ParseLaunchTarget(arg);
+                if (!string.IsNullOrEmpty(target))
+                {
+                    AddNewTab("Loading...", target);
+                }
+            }
+            catch { }
+        }
+
+        private bool hasExplicitLaunchArg = false;
+        private bool restoringSession = false;
 
         public BrowserForm(string[] args = null)
         {
-            logPath = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "debug.log");
+            logPath = Program.GetLogFilePath();
             CleanupStalePdfTemp();
             Log("=== Black Firefox starting (Black Firefox Glassmorphic Edition v9.0) ===");
 
+            string home = string.IsNullOrWhiteSpace(SettingsStore.HomePage) ? "black://home" : SettingsStore.HomePage;
+            initialStartupUrl = home;
+
             if (args != null && args.Length > 0)
             {
-                string firstArg = args[0].Trim();
-                if (firstArg.IndexOf("music.youtube.com", StringComparison.OrdinalIgnoreCase) >= 0 || firstArg.Equals("--ytmusic", StringComparison.OrdinalIgnoreCase))
+                foreach (string raw in args)
                 {
-                    initialStartupUrl = "https://music.youtube.com";
-                    this.Text = "🎵 YouTube Music Desktop — Black Firefox (Ad-Free)";
-                }
-                else if (firstArg.IndexOf("youtube.com", StringComparison.OrdinalIgnoreCase) >= 0 || firstArg.Equals("--youtube", StringComparison.OrdinalIgnoreCase))
-                {
-                    initialStartupUrl = "https://www.youtube.com";
-                    this.Text = "▶ YouTube Desktop — Black Firefox (Ad-Free)";
-                }
-                else if (firstArg.StartsWith("http", StringComparison.OrdinalIgnoreCase) || firstArg.StartsWith("black://", StringComparison.OrdinalIgnoreCase))
-                {
-                    initialStartupUrl = firstArg;
+                    string parsed = ParseLaunchTarget(raw);
+                    if (!string.IsNullOrEmpty(parsed))
+                    {
+                        hasExplicitLaunchArg = true;
+                        initialStartupUrl = parsed;
+                        if (parsed == "https://music.youtube.com")
+                            this.Text = "🎵 YouTube Music Desktop — Black Firefox (Ad-Free)";
+                        else if (parsed == "https://www.youtube.com")
+                            this.Text = "▶ YouTube Desktop — Black Firefox (Ad-Free)";
+                        break;
+                    }
                 }
             }
+
+            ChromePainter.Enabled = SettingsStore.AnimationsEnabled;
+            ChromePainter.Accent = ParseAccentColor(SettingsStore.Accent);
 
             this.SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
             this.DoubleBuffered = true;
@@ -302,8 +309,13 @@ namespace BlackBrowser
                     this.Height = SettingsStore.WindowHeight;
                     if (SettingsStore.WindowLeft > 0 && SettingsStore.WindowTop > 0)
                     {
-                        this.Left = SettingsStore.WindowLeft;
-                        this.Top = SettingsStore.WindowTop;
+                        Rectangle desired = new Rectangle(SettingsStore.WindowLeft, SettingsStore.WindowTop, SettingsStore.WindowWidth, SettingsStore.WindowHeight);
+                        if (Screen.FromRectangle(desired).WorkingArea.IntersectsWith(desired))
+                        {
+                            this.StartPosition = FormStartPosition.Manual;
+                            this.Left = SettingsStore.WindowLeft;
+                            this.Top = SettingsStore.WindowTop;
+                        }
                     }
                 }
                 if (SettingsStore.WindowState == FormWindowState.Maximized)
@@ -327,6 +339,9 @@ namespace BlackBrowser
             SetupRAMTimer();
             SetupFileDragDrop();
             PopulateOmniTrie();
+
+            this.Move += (s, e) => { if (eyeCareOverlay != null) eyeCareOverlay.SyncToOwner(this); };
+            this.VisibleChanged += (s, e) => { if (eyeCareOverlay != null) eyeCareOverlay.SyncToOwner(this); };
 
             this.Show();
             this.BringToFront();
@@ -377,8 +392,7 @@ namespace BlackBrowser
 
         private void Log(string msg)
         {
-            try { File.AppendAllText(logPath, "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + msg + "\n"); }
-            catch { }
+            Program.AppendLog("[" + DateTime.Now.ToString("HH:mm:ss") + "] " + msg);
         }
 
         [System.Runtime.InteropServices.DllImport("user32.dll")]
@@ -387,20 +401,21 @@ namespace BlackBrowser
         private void SetupGCTimer()
         {
             gcTimer = new Timer();
-            gcTimer.Interval = 60000;
-            gcTimer.Tick += (s, e) => MemoryTrimmer.TrimProcessMemory();
+            gcTimer.Interval = 120000;
+            gcTimer.Tick += (s, e) =>
+            {
+                // Trim memory gently only when minimized or when multiple tabs are open
+                if (this.WindowState == FormWindowState.Minimized || !this.Visible || tabControl.TabPages.Count > 4)
+                {
+                    MemoryTrimmer.TrimProcessMemory();
+                }
+            };
             gcTimer.Start();
         }
 
         private void SetupRAMTimer()
         {
-            ramTimer = new Timer();
-            ramTimer.Interval = 30000;
-            ramTimer.Tick += (s, e) =>
-            {
-                MemoryTrimmer.TrimProcessMemory();
-            };
-            ramTimer.Start();
+            // Consolidated into SetupGCTimer to avoid redundant Gen-2 GC and page-fault churn
         }
 
         private void InitializeUI()
@@ -442,7 +457,8 @@ namespace BlackBrowser
             backBtn.Click += (s, e) => { WebView2 wv = GetCurrentWebView(); if (wv != null && wv.CanGoBack) wv.GoBack(); };
             fwdBtn.Click += (s, e) => { WebView2 wv = GetCurrentWebView(); if (wv != null && wv.CanGoForward) wv.GoForward(); };
             reloadBtn.Click += (s, e) => ReloadCurrentTab();
-            homeBtn.Click += (s, e) => NavigateCurrentTab("black://home");
+            homeBtn.Click += (s, e) => NavigateCurrentTab(string.IsNullOrWhiteSpace(SettingsStore.HomePage) ? "black://home" : SettingsStore.HomePage);
+            homeBtn.Visible = SettingsStore.ShowHomeButton;
 
             actionsPanel = new FlowLayoutPanel();
             actionsPanel.Dock = DockStyle.Right;
@@ -484,7 +500,7 @@ namespace BlackBrowser
 
             navStrip = new Panel();
             navStrip.Dock = DockStyle.Left;
-            navStrip.Width = 196;
+            navStrip.Width = SettingsStore.ShowHomeButton ? 196 : 150;
             navStrip.Height = 72;
             navStrip.BackColor = Color.Transparent;
             navStrip.Controls.Add(backBtn);
@@ -730,6 +746,7 @@ namespace BlackBrowser
             {
                 PositionOmnibox();
                 if (acDropdown != null && acDropdown.Visible) PositionAutocomplete();
+                if (eyeCareOverlay != null) eyeCareOverlay.SyncToOwner(this);
 
                 if (this.WindowState == FormWindowState.Minimized)
                 {
@@ -891,7 +908,9 @@ namespace BlackBrowser
                     if (completed && row.Speed != null) row.Speed.Text = "✓ Done";
                     if (shelfFlow != null && row.Panel != null) shelfFlow.Controls.Remove(row.Panel);
                     shelfRows.Remove(op);
-                    if (completed) { try { row.Panel.Dispose(); } catch { } }
+                    if (row.Panel != null) { try { row.Panel.Dispose(); } catch { } }
+                    if (shelfFlow != null && shelfFlow.Controls.Count == 0 && downloadsShelf != null)
+                        downloadsShelf.Visible = false;
                 }
             }
             catch { }
@@ -904,16 +923,21 @@ namespace BlackBrowser
             sidebarPanel.Dock = DockStyle.Left;
             sidebarPanel.BackColor = Color.FromArgb(24, 24, 32);
             sidebarPanel.Visible = false;
-            int topOff = (tabControl != null ? tabControl.DisplayRectangle.Y : 40) + (omniboxPanel != null ? omniboxPanel.Height : 50) + 8;
+            int topOff = (tabControl != null ? tabControl.DisplayRectangle.Y : 46) + (omniboxPanel != null ? omniboxPanel.Height : 72) + 8;
             sidebarPanel.Padding = new Padding(8, topOff, 8, 8);
+
+            Panel headerRow = new Panel();
+            headerRow.Dock = DockStyle.Top;
+            headerRow.Height = 30;
+            headerRow.BackColor = Color.Transparent;
 
             Label title = new Label();
             title.Text = "🗂 Library";
             title.Font = new Font("Segoe UI Variable Display", 10f, FontStyle.Bold);
             title.ForeColor = Color.FromArgb(230, 233, 240);
-            title.Dock = DockStyle.Top;
-            title.Height = 30;
-            sidebarPanel.Controls.Add(title);
+            title.Dock = DockStyle.Fill;
+            title.TextAlign = ContentAlignment.MiddleLeft;
+            headerRow.Controls.Add(title);
 
             Button closeBtn = new Button();
             closeBtn.Text = "✕";
@@ -921,11 +945,11 @@ namespace BlackBrowser
             closeBtn.FlatAppearance.BorderSize = 0;
             closeBtn.BackColor = Color.Transparent;
             closeBtn.ForeColor = Color.FromArgb(150, 155, 170);
-            closeBtn.Size = new Size(24, 24);
-            closeBtn.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            closeBtn.Location = new Point(226, 4);
+            closeBtn.Size = new Size(26, 26);
+            closeBtn.Dock = DockStyle.Right;
+            closeBtn.Cursor = Cursors.Hand;
             closeBtn.Click += (s, e) => ToggleSidebar();
-            sidebarPanel.Controls.Add(closeBtn);
+            headerRow.Controls.Add(closeBtn);
 
             sidebarBookmarksBtn = new Button();
             sidebarBookmarksBtn.Text = "⭐ Bookmarks";
@@ -936,7 +960,6 @@ namespace BlackBrowser
             sidebarBookmarksBtn.Dock = DockStyle.Top;
             sidebarBookmarksBtn.Height = 30;
             sidebarBookmarksBtn.Click += (s, e) => ShowSidebarTab(true);
-            sidebarPanel.Controls.Add(sidebarBookmarksBtn);
 
             sidebarHistoryBtn = new Button();
             sidebarHistoryBtn.Text = "🕐 History";
@@ -947,7 +970,6 @@ namespace BlackBrowser
             sidebarHistoryBtn.Dock = DockStyle.Top;
             sidebarHistoryBtn.Height = 30;
             sidebarHistoryBtn.Click += (s, e) => ShowSidebarTab(false);
-            sidebarPanel.Controls.Add(sidebarHistoryBtn);
 
             sidebarList = new ListView();
             sidebarList.Dock = DockStyle.Fill;
@@ -983,6 +1005,9 @@ namespace BlackBrowser
                 }
             };
             sidebarPanel.Controls.Add(sidebarTree);
+            sidebarPanel.Controls.Add(sidebarHistoryBtn);
+            sidebarPanel.Controls.Add(sidebarBookmarksBtn);
+            sidebarPanel.Controls.Add(headerRow);
 
             this.Controls.Add(sidebarPanel);
         }
@@ -1025,11 +1050,13 @@ namespace BlackBrowser
             sidebarList.Items.Clear();
             try
             {
-                var hs = HistoryManager.Search("", 200);
+                var hs = HistoryManager.GetHistoryItems();
                 if (hs != null)
                 {
-                    foreach (var h in hs)
+                    int limit = Math.Min(hs.Count, 200);
+                    for (int i = 0; i < limit; i++)
                     {
+                        var h = hs[i];
                         ListViewItem it = new ListViewItem(h.Title);
                         it.SubItems.Add(h.Timestamp);
                         it.Tag = h.Url;
@@ -1092,13 +1119,42 @@ namespace BlackBrowser
             {
                 try
                 {
-                    if (pwCandidate != null && !string.IsNullOrEmpty(pwCandidate.Item3))
-                        PasswordManager.SavePassword(pwCandidate.Item1, pwCandidate.Item2, pwCandidate.Item3);
+                    if (pwCandidate != null && !string.IsNullOrEmpty(pwCandidate.Item4))
+                    {
+                        if (pwPromptIsAutofill)
+                        {
+                            WebView2 targetWv = pwCandidate.Item1;
+                            if (targetWv != null && !targetWv.IsDisposed && targetWv.CoreWebView2 != null)
+                            {
+                                var ser = new System.Web.Script.Serialization.JavaScriptSerializer();
+                                string uJson = ser.Serialize(pwCandidate.Item3 ?? "");
+                                string pJson = ser.Serialize(pwCandidate.Item4 ?? "");
+                                string fillJs = "(function(u,p){"
+                                    + "var pw=document.querySelector('input[type=password]');"
+                                    + "if(!pw)return;"
+                                    + "var form=pw.form||document;"
+                                    + "var uf=form.querySelector('input[type=email],input[name*=user],input[name*=email],input[name*=login],input[type=text]');"
+                                    + "function setVal(el,val){if(!el||!val)return;"
+                                    + "var d=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value');"
+                                    + "if(d&&d.set)d.set.call(el,val);else el.value=val;"
+                                    + "el.dispatchEvent(new Event('input',{bubbles:true}));"
+                                    + "el.dispatchEvent(new Event('change',{bubbles:true}));}"
+                                    + "setVal(uf,u);setVal(pw,p);"
+                                    + "})(" + uJson + "," + pJson + ");";
+                                targetWv.CoreWebView2.ExecuteScriptAsync(fillJs);
+                            }
+                        }
+                        else
+                        {
+                            PasswordManager.SavePassword(pwCandidate.Item2, pwCandidate.Item3, pwCandidate.Item4);
+                            ShowSoftCommunication("🔐 Password saved");
+                        }
+                    }
                 }
                 catch { }
                 pwPrompt.Visible = false;
                 pwCandidate = null;
-                ShowSoftCommunication("🔐 Password saved");
+                pwPromptIsAutofill = false;
             };
             pwPrompt.Controls.Add(pwSaveBtn);
 
@@ -1125,6 +1181,7 @@ namespace BlackBrowser
                 if (meta.ReaderActive)
                 {
                     meta.ReaderActive = false;
+                    meta.ReaderHtml = "";
                     UpdateReaderButtonState();
                     if (!string.IsNullOrEmpty(meta.ReaderOriginalUrl)) wv.CoreWebView2.Navigate(meta.ReaderOriginalUrl);
                     return;
@@ -1137,7 +1194,7 @@ namespace BlackBrowser
                 string text = "";
                 try
                 {
-                    string dec = Uri.UnescapeDataString(res);
+                    string dec = Uri.UnescapeDataString(res).Trim('"');
                     int bar = dec.IndexOf('|');
                     if (bar >= 0) { title = dec.Substring(0, bar); text = dec.Substring(bar + 1); }
                 }
@@ -1149,8 +1206,9 @@ namespace BlackBrowser
                 }
                 meta.ReaderActive = true;
                 meta.ReaderOriginalUrl = wv.CoreWebView2.Source;
+                meta.ReaderHtml = BuildReaderHtml(title, text, meta.ReaderOriginalUrl);
                 UpdateReaderButtonState();
-                wv.CoreWebView2.NavigateToString(BuildReaderHtml(title, text, meta.ReaderOriginalUrl));
+                wv.CoreWebView2.Navigate(InternalUrlRouter.VirtualOrigin + "/reader");
             }
             catch (Exception ex) { Log("Reader: " + ex.Message); }
         }
@@ -1176,21 +1234,6 @@ namespace BlackBrowser
         {
             if (s == null) return "";
             return s.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace("\"", "&quot;").Replace("'", "&#39;");
-        }
-
-        private static string ParseJsonStr(string json, string key)
-        {
-            try
-            {
-                int idx = json.IndexOf(key);
-                if (idx < 0) return "";
-                int start = json.IndexOf('"', idx + key.Length);
-                if (start < 0) return "";
-                int end = json.IndexOf('"', start + 1);
-                if (end < 0) return "";
-                return json.Substring(start + 1, end - start - 1);
-            }
-            catch { return ""; }
         }
 
         private void BuildFindBar()
@@ -1285,8 +1328,8 @@ namespace BlackBrowser
             if (findWebView == null || findWebView.CoreWebView2 == null) { findStatus.Text = ""; return; }
             string q = findBox.Text;
             if (string.IsNullOrEmpty(q)) { findStatus.Text = ""; return; }
-            string jsQ = q.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "\\r").Replace("\n", "\\n");
-            string js = "window.find(\"" + jsQ + "\", false, " + (backwards ? "true" : "false") + ", true);";
+            string jsQ = new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(q);
+            string js = "window.find(" + jsQ + ", false, " + (backwards ? "true" : "false") + ", true);";
             findWebView.CoreWebView2.ExecuteScriptAsync(js).ContinueWith(t =>
             {
                 bool found = t.IsCompleted && t.Result != null && t.Result.Trim() == "true";
@@ -1370,23 +1413,9 @@ namespace BlackBrowser
                 acItems.Add(Tuple.Create(s.Category, s.Title, s.Url));
             }
 
-            if (acItems.Count < 6 && !query.Contains("."))
-            {
-                string searchUrl = "https://www.google.com/search?q=" + Uri.EscapeDataString(query);
-                if (!acItems.Any(a => a.Item3.Equals(searchUrl, StringComparison.OrdinalIgnoreCase)))
-                {
-                    acItems.Add(Tuple.Create("🔍", "Search Google for \"" + query + "\"", searchUrl));
-                }
-            }
-
-            if (acItems.Count == 0)
-            {
-                HideAutocomplete();
-                return;
-            }
             if (acItems.Count > 8) acItems.RemoveRange(8, acItems.Count - 8);
 
-            // Always add search engine suggestion at the end
+            // Always add configured search engine suggestion at the end
             string searchLabel = "🔍 Search " + (SettingsStore.SearchEngine ?? "google") + " for \"" +
                 (query.Length > 40 ? query.Substring(0, 37) + "..." : query) + "\"";
             acItems.Add(Tuple.Create("🔍", searchLabel, SettingsStore.GetSearchUrl(query)));
@@ -1597,7 +1626,7 @@ namespace BlackBrowser
             if (wv != null && wv.CoreWebView2 != null)
             {
                 string url = wv.Source != null ? wv.Source.ToString() : "";
-                if (string.IsNullOrWhiteSpace(url) || url == "about:blank" || url.StartsWith("black://") || url.EndsWith("speeddial.html"))
+                if (string.IsNullOrWhiteSpace(url) || url == "about:blank" || url.StartsWith("black://") || InternalUrlRouter.IsInternalOrigin(url))
                 {
                     NavigateCurrentTab("black://bookmarks");
                     return;
@@ -1633,13 +1662,43 @@ namespace BlackBrowser
                 (themeIndex) => SetTheme(themeIndex == 1),
                 (eyeCareIndex) => SetEyeCareMode(eyeCareIndex),
                 initialTab,
-                (u) => NavigateCurrentTab(u)))
+                (u) => NavigateCurrentTab(u),
+                ApplyUserPreferences))
             {
                 sf.ShowDialog(this);
             }
 
-            UpdateUICornerRadius();
+            ApplyUserPreferences();
             ReloadAllSpeedDials();
+        }
+
+        private void ApplyUserPreferences()
+        {
+            try
+            {
+                ChromePainter.Accent = ParseAccentColor(SettingsStore.Accent);
+                ChromePainter.Enabled = SettingsStore.AnimationsEnabled;
+                if (homeBtn != null) homeBtn.Visible = SettingsStore.ShowHomeButton;
+                if (navStrip != null) navStrip.Width = SettingsStore.ShowHomeButton ? 196 : 150;
+                UpdateUICornerRadius();
+                PositionOmnibox();
+                foreach (TabPage page in tabControl.TabPages)
+                {
+                    WebView2 wv = GetWebView(page);
+                    if (wv != null && !wv.IsDisposed && wv.CoreWebView2 != null)
+                    {
+                        try
+                        {
+                            wv.CoreWebView2.Profile.PreferredColorScheme = SettingsStore.ForceDarkMode
+                                ? CoreWebView2PreferredColorScheme.Dark
+                                : CoreWebView2PreferredColorScheme.Auto;
+                        }
+                        catch { }
+                    }
+                }
+                this.Invalidate(true);
+            }
+            catch { }
         }
 
         private void ReloadAllSpeedDials()
@@ -1652,7 +1711,7 @@ namespace BlackBrowser
                     if (wv != null && wv.CoreWebView2 != null && wv.Source != null)
                     {
                         string src = wv.Source.ToString();
-                        if (src.Contains("speeddial.html") || src.StartsWith("black://home") || src.StartsWith("about:blank"))
+                        if (InternalUrlRouter.IsInternalOrigin(src) || src.StartsWith("black://", StringComparison.OrdinalIgnoreCase))
                         {
                             wv.Reload();
                         }
@@ -1852,7 +1911,17 @@ namespace BlackBrowser
         private GraphicsPath GetRoundedPath(Rectangle r, int radius)
         {
             GraphicsPath path = new GraphicsPath();
-            int d = radius * 2;
+            if (radius <= 0 || r.Width <= 0 || r.Height <= 0)
+            {
+                path.AddRectangle(r);
+                return path;
+            }
+            int d = Math.Min(radius * 2, Math.Min(r.Width, r.Height));
+            if (d <= 0)
+            {
+                path.AddRectangle(r);
+                return path;
+            }
             path.AddArc(r.X, r.Y, d, d, 180, 90);
             path.AddArc(r.Right - d, r.Y, d, d, 270, 90);
             path.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
@@ -2192,12 +2261,15 @@ namespace BlackBrowser
             if (wv != null && wv.Source != null)
             {
                 string u = wv.Source.ToString();
-                if (!string.IsNullOrEmpty(u) && u != "about:blank" && !u.EndsWith("speeddial.html"))
+                string disp = InternalUrlRouter.GetDisplayUrl(u);
+                if (!string.IsNullOrEmpty(disp) && disp != "black://home")
                 {
-                    closedTabStack.Push(Tuple.Create(page.Text, u));
+                    closedTabStack.Push(Tuple.Create(page.Text, disp));
                     while (closedTabStack.Count > 10) closedTabStack.Pop();
                 }
             }
+
+            pinnedTabs.Remove(page);
 
             if (tabControl.TabPages.Count > 1)
             {
@@ -2213,9 +2285,12 @@ namespace BlackBrowser
             }
             else
             {
+                TabMetadata meta = GetTabMetadata(page);
+                if (meta != null) { meta.ReaderActive = false; meta.ReaderOriginalUrl = ""; meta.ReaderHtml = ""; }
+                UpdateReaderButtonState();
                 if (wv != null && wv.CoreWebView2 != null)
                 {
-                    wv.CoreWebView2.NavigateToString(SpeedDialPage.GetHtml(isDarkMode));
+                    wv.CoreWebView2.Navigate(InternalUrlRouter.VirtualOrigin + "/home");
                     urlBar.Text = "";
                     tabControl.SelectedTab.Text = "New Tab";
                 }
@@ -2223,6 +2298,7 @@ namespace BlackBrowser
 
             PositionOmnibox();
             this.BeginInvoke((Action)(() => UpdateNewTabButtonPosition()));
+            SaveCurrentSession();
         }
 
         private void DuplicateCurrentTab(TabPage targetTab = null)
@@ -2234,13 +2310,14 @@ namespace BlackBrowser
                 string url = "black://home";
                 if (wv != null)
                 {
+                    string raw = "";
                     if (wv.CoreWebView2 != null && !string.IsNullOrEmpty(wv.CoreWebView2.Source))
-                        url = wv.CoreWebView2.Source;
+                        raw = wv.CoreWebView2.Source;
                     else if (wv.Source != null)
-                        url = wv.Source.ToString();
+                        raw = wv.Source.ToString();
+                    string disp = InternalUrlRouter.GetDisplayUrl(raw);
+                    url = !string.IsNullOrEmpty(disp) ? disp : (InternalUrlRouter.IsInternalOrigin(raw) || raw == "about:blank" ? "black://home" : raw);
                 }
-                if (string.IsNullOrEmpty(url) || url == "about:blank" || url.Contains("speeddial.html"))
-                    url = "black://home";
 
                 bool isPriv = target.Tag != null && (bool)target.Tag == true;
                 AddNewTab(target.Text, url, isPrivate: isPriv);
@@ -2297,7 +2374,8 @@ namespace BlackBrowser
             });
             mainMenu.Items.Add("👁 Eye care filter (Ctrl+Shift+E)", null, (s, e) => CycleEyeCareMode());
             mainMenu.Items.Add("🌙 Dark / light theme (Ctrl+Shift+D)", null, (s, e) => ToggleTheme());
-            mainMenu.Items.Add("📝 Dark notes (Ctrl+Shift+N)", null, (s, e) => OpenSettingsDialog(2));
+            mainMenu.Items.Add("📝 Dark notes (Ctrl+Shift+N)", null, (s, e) => OpenSettingsDialog(3));
+            mainMenu.Items.Add("📱 QR code for page", null, (s, e) => ShowCurrentPageQrCode());
             mainMenu.Items.Add("📸 Take screenshot", null, (s, e) => TakeScreenshot());
             mainMenu.Items.Add("Print page (Ctrl+P)", null, (s, e) =>
             {
@@ -2333,6 +2411,26 @@ namespace BlackBrowser
             mainMenu.Items.Add(new ToolStripSeparator());
 
             mainMenu.Items.Add("Exit", null, (s, e) => ExitApp());
+        }
+
+        private void ShowCurrentPageQrCode()
+        {
+            WebView2 wv = GetCurrentWebView();
+            string url = "";
+            if (wv != null && wv.Source != null)
+            {
+                url = InternalUrlRouter.GetDisplayUrl(wv.Source.ToString());
+                if (string.IsNullOrEmpty(url)) url = wv.Source.ToString();
+            }
+            if (string.IsNullOrWhiteSpace(url) || InternalUrlRouter.IsInternalOrigin(url) || url.StartsWith("black://", StringComparison.OrdinalIgnoreCase))
+            {
+                ShowSoftCommunication("📱 Open a webpage first to generate a QR code");
+                return;
+            }
+            using (QrCodeForm qr = new QrCodeForm(url))
+            {
+                qr.ShowDialog(this);
+            }
         }
 
         private void SetAsDefaultBrowser()
@@ -2387,37 +2485,6 @@ namespace BlackBrowser
                 wv.ZoomFactor = Math.Max(0.25, Math.Min(5.0, wv.ZoomFactor + delta));
                 ShowSoftCommunication("🔍 Zoom: " + (int)(wv.ZoomFactor * 100) + "%");
             }
-        }
-
-        private class ChromeMenuRenderer : ToolStripProfessionalRenderer
-        {
-            public ChromeMenuRenderer() : base(new ChromeMenuColorTable()) { }
-
-            protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
-            {
-                if (e.Item.Selected)
-                {
-                    Rectangle rc = new Rectangle(4, 1, e.Item.Width - 8, e.Item.Height - 2);
-                    using (var b = new SolidBrush(Color.FromArgb(66, 133, 244)))
-                    {
-                        e.Graphics.FillRectangle(b, rc);
-                    }
-                    e.Item.ForeColor = Color.White;
-                }
-                else
-                {
-                    e.Item.ForeColor = Color.FromArgb(232, 234, 237);
-                }
-            }
-        }
-
-        private class ChromeMenuColorTable : ProfessionalColorTable
-        {
-            public override Color MenuItemSelected { get { return Color.FromArgb(66, 133, 244); } }
-            public override Color MenuItemBorder { get { return Color.FromArgb(66, 133, 244); } }
-            public override Color MenuBorder { get { return Color.FromArgb(60, 64, 67); } }
-            public override Color SeparatorDark { get { return Color.FromArgb(60, 64, 67); } }
-            public override Color SeparatorLight { get { return Color.FromArgb(60, 64, 67); } }
         }
 
         private void SetTheme(bool dark)
@@ -2496,9 +2563,9 @@ namespace BlackBrowser
                 if (wv != null && wv.CoreWebView2 != null && wv.Source != null)
                 {
                     string uriStr = wv.Source.ToString();
-                    if (uriStr.Contains("speeddial") || uriStr == "about:blank")
+                    if (InternalUrlRouter.IsInternalOrigin(uriStr))
                     {
-                        wv.CoreWebView2.NavigateToString(SpeedDialPage.GetHtml(dark));
+                        wv.Reload();
                     }
                 }
             }
@@ -2514,7 +2581,7 @@ namespace BlackBrowser
         private void SetEyeCareMode(int mode)
         {
             eyeCareMode = mode;
-            eyeCareOverlay.SetMode(mode);
+            eyeCareOverlay.SetMode(mode, this);
 
             if (eyeCareMode == 1)
             {
@@ -2554,11 +2621,78 @@ namespace BlackBrowser
 
         private static bool IsInternalOrigin(string source)
         {
-            if (string.IsNullOrEmpty(source)) return true;
-            return source.Equals("about:blank", StringComparison.OrdinalIgnoreCase) ||
-                   source.StartsWith("black://", StringComparison.OrdinalIgnoreCase) ||
-                   source.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ||
-                   source.EndsWith("speeddial.html", StringComparison.OrdinalIgnoreCase);
+            return InternalUrlRouter.IsInternalOrigin(source);
+        }
+
+        private static string GetQueryParam(string uri, string key)
+        {
+            if (string.IsNullOrEmpty(uri) || string.IsNullOrEmpty(key)) return "";
+            int qIdx = uri.IndexOf('?');
+            if (qIdx < 0 || qIdx + 1 >= uri.Length) return "";
+            string query = uri.Substring(qIdx + 1);
+            string[] pairs = query.Split('&');
+            foreach (string pair in pairs)
+            {
+                int eq = pair.IndexOf('=');
+                string k = eq >= 0 ? Uri.UnescapeDataString(pair.Substring(0, eq)) : Uri.UnescapeDataString(pair);
+                if (string.Equals(k, key, StringComparison.OrdinalIgnoreCase))
+                {
+                    return eq >= 0 ? Uri.UnescapeDataString(pair.Substring(eq + 1)) : "";
+                }
+            }
+            return "";
+        }
+
+        private static bool IsPdfUrl(string uriStr)
+        {
+            if (string.IsNullOrEmpty(uriStr)) return false;
+            Uri u;
+            if (Uri.TryCreate(uriStr, UriKind.Absolute, out u))
+                return (u.AbsolutePath ?? "").EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
+            return uriStr.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void ShowAutofillPromptIfAvailable(WebView2 wv, TabPage page, string sourceUri)
+        {
+            try
+            {
+                if (wv == null || wv.IsDisposed || wv.CoreWebView2 == null || page == null || page.IsDisposed) return;
+                if (page.Tag != null && (bool)page.Tag == true) return; // Do not auto-prompt in private tabs
+                if (tabControl.SelectedTab != page) return;
+                Uri u;
+                if (!Uri.TryCreate(sourceUri, UriKind.Absolute, out u)) return;
+                bool isLocalHttp = u.Scheme == Uri.UriSchemeHttp &&
+                    (u.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) || u.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase));
+                if (u.Scheme != Uri.UriSchemeHttps && !isLocalHttp) return;
+
+                var creds = PasswordManager.GetCredentialsForHost(u.Host);
+                if (creds == null || creds.Count == 0) return;
+
+                PasswordItem first = creds[0];
+                wv.CoreWebView2.ExecuteScriptAsync(
+                    "(function(){var p=document.querySelector('input[type=password]');return p&&!p.value&&p.offsetParent!==null?'1':'0';})()"
+                ).ContinueWith(t =>
+                {
+                    try
+                    {
+                        if (t.IsFaulted || t.IsCanceled || string.IsNullOrEmpty(t.Result)) return;
+                        if (t.Result.Trim('"') != "1") return;
+                        if (this.IsDisposed || wv.IsDisposed || tabControl.SelectedTab != page) return;
+                        this.BeginInvoke((Action)(() =>
+                        {
+                            if (pwPrompt == null || pwPromptLabel == null || pwSaveBtn == null) return;
+                            pwCandidate = Tuple.Create(wv, u.Host, first.Username ?? "", first.Password ?? "");
+                            pwPromptIsAutofill = true;
+                            string userLabel = string.IsNullOrEmpty(first.Username) ? u.Host : (u.Host + " (" + first.Username + ")");
+                            pwPromptLabel.Text = "🔑 Autofill saved password for " + userLabel + "?";
+                            pwSaveBtn.Text = "Fill";
+                            pwPrompt.Visible = true;
+                        }));
+                    }
+                    catch { }
+                });
+            }
+            catch { }
         }
 
         private async void InitializeBrowserEnv()
@@ -2587,7 +2721,44 @@ namespace BlackBrowser
 
                 if (success && webViewEnv != null)
                 {
-                    AddNewTab(initialStartupUrl.Contains("music.youtube.com") ? "YT Music" : (initialStartupUrl.Contains("youtube.com") ? "YouTube" : "New Tab"), initialStartupUrl);
+                    bool restoredSession = false;
+                    if (!hasExplicitLaunchArg && SettingsStore.RestoreSession)
+                    {
+                        restoringSession = true;
+                        try
+                        {
+                            SessionStateData session = SessionManager.LoadSession();
+                            if (session != null && session.Tabs != null && session.Tabs.Count > 0)
+                            {
+                                foreach (SessionTabEntry entry in session.Tabs)
+                                {
+                                    if (entry == null || string.IsNullOrWhiteSpace(entry.Url)) continue;
+                                    string tUrl = entry.Url;
+                                    string tTitle = string.IsNullOrWhiteSpace(entry.Title) ? "Tab" : entry.Title;
+                                    AddNewTab(tTitle, tUrl);
+                                    if (entry.Pinned && tabControl.TabPages.Count > 0)
+                                    {
+                                        pinnedTabs.Add(tabControl.TabPages[tabControl.TabPages.Count - 1]);
+                                    }
+                                    restoredSession = true;
+                                }
+                                if (restoredSession && session.ActiveIndex >= 0 && session.ActiveIndex < tabControl.TabPages.Count)
+                                {
+                                    tabControl.SelectedIndex = session.ActiveIndex;
+                                }
+                            }
+                        }
+                        catch { }
+                        finally
+                        {
+                            restoringSession = false;
+                        }
+                    }
+
+                    if (!restoredSession)
+                    {
+                        AddNewTab(initialStartupUrl.Contains("music.youtube.com") ? "YT Music" : (initialStartupUrl.Contains("youtube.com") ? "YouTube" : "New Tab"), initialStartupUrl);
+                    }
                     CheckForUpdatesBackground();
                     return;
                 }
@@ -2599,11 +2770,30 @@ namespace BlackBrowser
             }
 
             Log("FATAL Env: Failed to create WebView2 environment after 3 attempts");
-            ShowSoftCommunication("⚠️ Failed to initialize WebView2. Some features may not work.");
+            if (string.IsNullOrEmpty(Program.GetInstalledWebView2Version()))
+            {
+                ShowSoftCommunication("⚠️ WebView2 Runtime is missing. Prompting installation...");
+                this.BeginInvoke((Action)(() =>
+                {
+                    try
+                    {
+                        if (Program.EnsureWebView2RuntimeAvailable())
+                        {
+                            InitializeBrowserEnv();
+                        }
+                    }
+                    catch { }
+                }));
+            }
+            else
+            {
+                ShowSoftCommunication("⚠️ Failed to initialize WebView2. Some features may not work.");
+            }
         }
 
         public async void AddNewTab(string title, string url, bool isPrivate = false, CoreWebView2NewWindowRequestedEventArgs newWindowArgs = null, CoreWebView2Deferral deferral = null)
         {
+            bool deferralCompleted = false;
             try
             {
                 if (webViewEnv == null) return;
@@ -2652,10 +2842,7 @@ namespace BlackBrowser
                     await wv.EnsureCoreWebView2Async(webViewEnv);
                 }
 
-                try { wv.CoreWebView2.Settings.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"; } catch { }
-
-                // Harden WebView2 settings
-
+                // Harden WebView2 settings (keep authentic runtime User-Agent & Client Hints)
                 try { wv.CoreWebView2.Settings.IsPasswordAutosaveEnabled = false; } catch { }
                 try { wv.CoreWebView2.Settings.IsGeneralAutofillEnabled = !isPrivate; } catch { }
                 try { wv.CoreWebView2.Settings.IsStatusBarEnabled = true; } catch { }
@@ -2663,11 +2850,42 @@ namespace BlackBrowser
                 try { wv.CoreWebView2.Settings.AreDefaultScriptDialogsEnabled = true; } catch { }
                 try { wv.CoreWebView2.Settings.IsBuiltInErrorPageEnabled = true; } catch { }
                 try { wv.CoreWebView2.Settings.AreDevToolsEnabled = SettingsStore.AllowDeveloperTools; } catch { }
-
                 try { wv.CoreWebView2.MemoryUsageTargetLevel = CoreWebView2MemoryUsageTargetLevel.Low; } catch { }
+                try
+                {
+                    if (SettingsStore.DefaultZoom >= 0.25 && SettingsStore.DefaultZoom <= 5.0 && Math.Abs(SettingsStore.DefaultZoom - 1.0) > 0.01)
+                        wv.ZoomFactor = SettingsStore.DefaultZoom;
+                }
+                catch { }
+                try
+                {
+                    wv.CoreWebView2.Profile.PreferredColorScheme = SettingsStore.ForceDarkMode
+                        ? CoreWebView2PreferredColorScheme.Dark
+                        : CoreWebView2PreferredColorScheme.Auto;
+                    wv.CoreWebView2.Profile.PreferredTrackingPreventionLevel = CoreWebView2TrackingPreventionLevel.Balanced;
+                }
+                catch { }
+
+                // Serve internal pages from isolated https://black.internal virtual origin
+                wv.CoreWebView2.AddWebResourceRequestedFilter(InternalUrlRouter.VirtualOrigin + "/*", CoreWebView2WebResourceContext.All);
+                wv.CoreWebView2.WebResourceRequested += async (ws, we) =>
+                {
+                    try
+                    {
+                        await InternalUrlRouter.TryServeVirtualRequest(
+                            wv, we,
+                            () => isDarkMode,
+                            () =>
+                            {
+                                TabMetadata m = GetTabMetadata(page);
+                                return m != null ? m.ReaderHtml : "";
+                            });
+                    }
+                    catch { }
+                };
 
                 // Password-save detection and WebMessage security handling
-                wv.CoreWebView2.WebMessageReceived += (ws, we) =>
+                wv.CoreWebView2.WebMessageReceived += async (ws, we) =>
                 {
                     try
                     {
@@ -2678,9 +2896,23 @@ namespace BlackBrowser
                         string raw = we.WebMessageAsJson;
                         string msg = raw.Trim().Trim('"');
 
-                        // Privileged internal commands require internal origin
+                        // Privileged internal commands strictly require https://black.internal origin
                         if (isInternal)
                         {
+                            string internalMsg = msg;
+                            try
+                            {
+                                string jsDecoded = new System.Web.Script.Serialization.JavaScriptSerializer().Deserialize<string>(raw);
+                                if (jsDecoded != null) internalMsg = jsDecoded;
+                            }
+                            catch { }
+
+                            if (internalMsg.StartsWith("notes:save:", StringComparison.Ordinal))
+                            {
+                                string noteBody = internalMsg.Substring("notes:save:".Length);
+                                SettingsStore.SaveQuickNotes(noteBody);
+                                return;
+                            }
                             if (msg.StartsWith("open:", StringComparison.Ordinal))
                             {
                                 int di;
@@ -2704,9 +2936,8 @@ namespace BlackBrowser
                                 {
                                     try
                                     {
-                                        string u = wv.Source != null ? wv.Source.ToString() : "";
-                                        if (u.Contains("black://downloads"))
-                                            wv.CoreWebView2.NavigateToString(DownloadsManager.GetDownloadsHtml(isDarkMode));
+                                        if (!wv.IsDisposed && wv.CoreWebView2 != null)
+                                            wv.CoreWebView2.Navigate(InternalUrlRouter.VirtualOrigin + "/downloads");
                                     }
                                     catch { }
                                 }));
@@ -2715,7 +2946,10 @@ namespace BlackBrowser
                             if (msg.StartsWith("cookies:clear", StringComparison.Ordinal))
                             {
                                 try { wv.CoreWebView2.CookieManager.DeleteAllCookies(); } catch { }
-                                this.BeginInvoke((Action)(() => CookieManager.Render(wv, isDarkMode)));
+                                this.BeginInvoke((Action)(() =>
+                                {
+                                    try { if (!wv.IsDisposed && wv.CoreWebView2 != null) wv.CoreWebView2.Navigate(InternalUrlRouter.VirtualOrigin + "/cookies"); } catch { }
+                                }));
                                 return;
                             }
                             if (msg.StartsWith("cookies:del:", StringComparison.Ordinal))
@@ -2732,23 +2966,19 @@ namespace BlackBrowser
                                         string cname = parts.Substring(0, p1);
                                         string cdom = parts.Substring(p1 + 1, p2 - p1 - 1);
                                         string cpath = parts.Substring(p2 + 1);
-                                        var cookies = wv.CoreWebView2.CookieManager.GetCookiesAsync(null);
-                                        cookies.ContinueWith((t) =>
+                                        var cookies = await wv.CoreWebView2.CookieManager.GetCookiesAsync(null);
+                                        foreach (var c in cookies)
                                         {
-                                            try
-                                            {
-                                                foreach (var c in t.Result)
-                                                {
-                                                    if (c.Name == cname && (c.Domain == cdom || c.Domain == "." + cdom) && c.Path == cpath)
-                                                        wv.CoreWebView2.CookieManager.DeleteCookie(c);
-                                                }
-                                            }
-                                            catch { }
-                                        });
+                                            if (c.Name == cname && (c.Domain == cdom || c.Domain == "." + cdom) && c.Path == cpath)
+                                                wv.CoreWebView2.CookieManager.DeleteCookie(c);
+                                        }
                                     }
                                 }
                                 catch { }
-                                this.BeginInvoke((Action)(() => CookieManager.Render(wv, isDarkMode)));
+                                this.BeginInvoke((Action)(() =>
+                                {
+                                    try { if (!wv.IsDisposed && wv.CoreWebView2 != null) wv.CoreWebView2.Navigate(InternalUrlRouter.VirtualOrigin + "/cookies"); } catch { }
+                                }));
                                 return;
                             }
                             if (msg == "readerback")
@@ -2766,6 +2996,7 @@ namespace BlackBrowser
                                             }
                                             meta.ReaderActive = false;
                                             meta.ReaderOriginalUrl = null;
+                                            meta.ReaderHtml = "";
                                         }
                                         UpdateReaderButtonState();
                                     }
@@ -2775,33 +3006,33 @@ namespace BlackBrowser
                             }
                         }
 
-                        // Password capture: verify site matches document origin to prevent spoofing
-                        int idx = raw.IndexOf("BF_PW|");
-                        if (idx < 0) return;
-                        string json = raw.Substring(idx + 6);
-                        string site = ParseJsonStr(json, "\"s\"");
-                        string user = ParseJsonStr(json, "\"u\"");
-                        string pass = ParseJsonStr(json, "\"p\"");
+                        // Password capture: parse properly & strictly verify origin
+                        string decodedMsg = null;
+                        try { decodedMsg = new System.Web.Script.Serialization.JavaScriptSerializer().Deserialize<string>(raw); } catch { }
+                        if (string.IsNullOrEmpty(decodedMsg)) decodedMsg = msg;
+                        int idx = decodedMsg.IndexOf("BF_PW|", StringComparison.Ordinal);
+                        if (idx != 0) return;
+
+                        string json = decodedMsg.Substring(6);
+                        var pwDict = new System.Web.Script.Serialization.JavaScriptSerializer().Deserialize<Dictionary<string, object>>(json);
+                        if (pwDict == null) return;
+                        string site = pwDict.ContainsKey("s") ? Convert.ToString(pwDict["s"]) : "";
+                        string user = pwDict.ContainsKey("u") ? Convert.ToString(pwDict["u"]) : "";
+                        string pass = pwDict.ContainsKey("p") ? Convert.ToString(pwDict["p"]) : "";
                         if (string.IsNullOrEmpty(pass) || string.IsNullOrEmpty(site)) return;
 
-                        // Origin validation for password saving
-                        try
-                        {
-                            if (!string.IsNullOrEmpty(msgSource) && !isInternal)
-                            {
-                                Uri srcUri = new Uri(msgSource);
-                                if (!srcUri.Host.Equals(site, StringComparison.OrdinalIgnoreCase) &&
-                                    !srcUri.Host.EndsWith("." + site, StringComparison.OrdinalIgnoreCase))
-                                {
-                                    return; // Reject mismatched site report
-                                }
-                            }
-                        }
-                        catch { return; }
+                        // Origin validation: disallow empty/internal origins and require exact host match
+                        Uri srcUri;
+                        if (isInternal || string.IsNullOrEmpty(msgSource) || !Uri.TryCreate(msgSource, UriKind.Absolute, out srcUri))
+                            return;
+                        if (!srcUri.Host.Equals(site, StringComparison.OrdinalIgnoreCase))
+                            return;
 
-                        pwCandidate = Tuple.Create(site, user, pass);
                         this.BeginInvoke((Action)(() =>
                         {
+                            pwCandidate = Tuple.Create(wv, site, user, pass);
+                            pwPromptIsAutofill = false;
+                            if (pwSaveBtn != null) pwSaveBtn.Text = "Save";
                             if (pwPromptLabel != null)
                                 pwPromptLabel.Text = "🔐 Save password for " + site + "?";
                             if (pwPrompt != null) pwPrompt.Visible = true;
@@ -2809,16 +3040,23 @@ namespace BlackBrowser
                     }
                     catch { }
                 };
+
                 wv.CoreWebView2.NavigationCompleted += (ws, we) =>
                 {
                     try
                     {
                         if (wv.IsDisposed || page.IsDisposed) return;
-                        wv.CoreWebView2.ExecuteScriptAsync(
-                            "if(!window.__bfDet){window.__bfDet=1;document.addEventListener('submit',function(ev){"
-                            + "var f=ev.target||{};var p=f.querySelector?f.querySelector('input[type=password]'):null;"
-                            + "if(p&&p.value){var u=f.querySelector?f.querySelector('input[type=email],input[name*=user],input[name*=email],input[name*=login]'):null;"
-                            + "window.chrome.webview.postMessage('BF_PW|'+JSON.stringify({s:location.hostname,u:u?u.value:'',p:p.value}));}},true);}");
+                        string srcNow = wv.Source != null ? wv.Source.ToString() : "";
+                        if (!InternalUrlRouter.IsInternalOrigin(srcNow))
+                        {
+                            wv.CoreWebView2.ExecuteScriptAsync(
+                                "if(!window.__bfDet){window.__bfDet=1;document.addEventListener('submit',function(ev){"
+                                + "var f=ev.target||{};var p=f.querySelector?f.querySelector('input[type=password]'):null;"
+                                + "if(p&&p.value){var u=f.querySelector?f.querySelector('input[type=email],input[name*=user],input[name*=email],input[name*=login],input[type=text]'):null;"
+                                + "window.chrome.webview.postMessage('BF_PW|'+JSON.stringify({s:location.hostname,u:u?u.value:'',p:p.value}));}},true);}");
+                            if (we != null && we.IsSuccess)
+                                ShowAutofillPromptIfAvailable(wv, page, srcNow);
+                        }
                     }
                     catch { }
                 };
@@ -2826,7 +3064,41 @@ namespace BlackBrowser
                 wv.CoreWebView2.ProcessFailed += (s, e) =>
                 {
                     Log("ProcessFailed: " + e.ProcessFailedKind.ToString());
-                    try { wv.Reload(); } catch { }
+                    this.BeginInvoke((Action)(() =>
+                    {
+                        try
+                        {
+                            if (e.ProcessFailedKind == CoreWebView2ProcessFailedKind.BrowserProcessExited)
+                            {
+                                ShowSoftCommunication("⚠️ Browser engine process exited unexpectedly.");
+                                return;
+                            }
+                            if (e.ProcessFailedKind == CoreWebView2ProcessFailedKind.RenderProcessUnresponsive)
+                            {
+                                ShowSoftCommunication("⚠️ Page became unresponsive.");
+                                return;
+                            }
+                            TabMetadata meta = GetTabMetadata(page);
+                            DateTime now = DateTime.UtcNow;
+                            if (meta != null && (now - meta.LastProcessCrash).TotalSeconds < 15)
+                            {
+                                // Prevent infinite crash-reload loop
+                                if (!wv.IsDisposed && wv.CoreWebView2 != null)
+                                {
+                                    wv.CoreWebView2.NavigateToString(
+                                        "<!DOCTYPE html><html><body style='background:#12131a;color:#e2e8f0;font-family:Segoe UI,sans-serif;text-align:center;padding:80px 24px'>"
+                                        + "<h2>⚠️ This tab crashed repeatedly</h2>"
+                                        + "<p style='color:#94a3b8;margin:12px 0 24px'>Auto-reload paused to prevent a crash loop (" + SimpleHtmlEscape(e.ProcessFailedKind.ToString()) + ").</p>"
+                                        + "<button onclick='history.back()' style='padding:10px 18px;border-radius:8px;border:none;background:#3b82f6;color:#fff;cursor:pointer;font-weight:600'>Go Back</button>"
+                                        + "</body></html>");
+                                }
+                                return;
+                            }
+                            if (meta != null) meta.LastProcessCrash = now;
+                            if (!wv.IsDisposed && wv.CoreWebView2 != null) wv.Reload();
+                        }
+                        catch { }
+                    }));
                 };
 
                 wv.CoreWebView2.NewWindowRequested += (s, e) =>
@@ -2843,17 +3115,22 @@ namespace BlackBrowser
                 try
                 {
                     var ctrlField = typeof(WebView2).GetField("_coreWebView2Controller", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                    var controller = ctrlField.GetValue(wv) as CoreWebView2Controller;
+                    var controller = ctrlField != null ? (ctrlField.GetValue(wv) as CoreWebView2Controller) : null;
                     if (controller != null)
                     {
                         controller.AcceleratorKeyPressed += (s, e) =>
                         {
-                            if (e.KeyEventKind == CoreWebView2KeyEventKind.KeyDown &&
-                                (e.VirtualKey & 0xFF) == (uint)Keys.F &&
-                                (GetKeyState(0x11) & 0x8000) != 0)
+                            if (e.KeyEventKind == CoreWebView2KeyEventKind.KeyDown || e.KeyEventKind == CoreWebView2KeyEventKind.SystemKeyDown)
                             {
-                                e.Handled = true;
-                                this.BeginInvoke((Action)(() => ShowFindBar(wv)));
+                                Keys key = (Keys)(e.VirtualKey & 0xFF);
+                                bool ctrl = (GetKeyState(0x11) & 0x8000) != 0;
+                                bool shift = (GetKeyState(0x10) & 0x8000) != 0;
+                                bool alt = (GetKeyState(0x12) & 0x8000) != 0;
+                                if (IsBrowserShortcut(ctrl, shift, alt, key, true))
+                                {
+                                    e.Handled = true;
+                                    this.BeginInvoke((Action)(() => ExecuteBrowserShortcut(ctrl, shift, alt, key)));
+                                }
                             }
                         };
                     }
@@ -2862,11 +3139,53 @@ namespace BlackBrowser
 
                 wv.CoreWebView2.PermissionRequested += (s, e) =>
                 {
-                    if (e.PermissionKind == CoreWebView2PermissionKind.Notifications)
-                        e.State = CoreWebView2PermissionState.Allow;
+                    try
+                    {
+                        string permHost = "";
+                        Uri permUri;
+                        if (Uri.TryCreate(e.Uri, UriKind.Absolute, out permUri)) permHost = permUri.GetLeftPart(UriPartial.Authority);
+                        if (InternalUrlRouter.IsInternalOrigin(e.Uri))
+                        {
+                            e.State = CoreWebView2PermissionState.Allow;
+                            return;
+                        }
+                        string cacheKey = permHost + "|" + e.PermissionKind.ToString();
+                        CoreWebView2PermissionState cached;
+                        if (permissionDecisions.TryGetValue(cacheKey, out cached))
+                        {
+                            e.State = cached;
+                            return;
+                        }
+                        var permDeferral = e.GetDeferral();
+                        this.BeginInvoke((Action)(() =>
+                        {
+                            try
+                            {
+                                string label = string.IsNullOrEmpty(permHost) ? (e.Uri ?? "this website") : permHost;
+                                DialogResult dr = MessageBox.Show(
+                                    this,
+                                    label + " wants permission to use: " + e.PermissionKind.ToString() + ".\n\nAllow this request?",
+                                    "Permission Request — Black Firefox",
+                                    MessageBoxButtons.YesNo,
+                                    MessageBoxIcon.Question);
+                                CoreWebView2PermissionState decision = dr == DialogResult.Yes
+                                    ? CoreWebView2PermissionState.Allow
+                                    : CoreWebView2PermissionState.Deny;
+                                permissionDecisions[cacheKey] = decision;
+                                e.State = decision;
+                            }
+                            catch
+                            {
+                                e.State = CoreWebView2PermissionState.Deny;
+                            }
+                            finally
+                            {
+                                permDeferral.Complete();
+                            }
+                        }));
+                    }
+                    catch { }
                 };
-
-                try { wv.CoreWebView2.Settings.AreDevToolsEnabled = true; } catch { }
 
                 wv.CoreWebView2.ContextMenuRequested += (s, e) =>
                 {
@@ -2875,15 +3194,16 @@ namespace BlackBrowser
                         string selText = e.ContextMenuTarget.SelectionText;
                         if (!string.IsNullOrWhiteSpace(selText))
                         {
+                            string engineName = SettingsStore.SearchEngine ?? "Google";
                             var searchItem = wv.CoreWebView2.Environment.CreateContextMenuItem(
-                                "🔍 Search Google for \"" + (selText.Length > 18 ? selText.Substring(0, 15) + "..." : selText) + "\"",
+                                "🔍 Search " + engineName + " for \"" + (selText.Length > 18 ? selText.Substring(0, 15) + "..." : selText) + "\"",
                                 null, CoreWebView2ContextMenuItemKind.Command);
 
                             searchItem.CustomItemSelected += (cs, ce) =>
                             {
                                 this.BeginInvoke((Action)(() =>
                                 {
-                                    AddNewTab("Google Search", "https://www.google.com/search?q=" + Uri.EscapeDataString(selText), isPrivate);
+                                    AddNewTab("Search", SettingsStore.GetSearchUrl(selText), isPrivate);
                                 }));
                             };
                             e.MenuItems.Insert(0, searchItem);
@@ -2935,8 +3255,7 @@ namespace BlackBrowser
                         string path = e.ResultFilePath;
                         string name = !string.IsNullOrEmpty(path) ? Path.GetFileName(path) : "Download";
 
-                        bool isPdf = downloadUrl.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)
-                                  || name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
+                        bool isPdf = IsPdfUrl(downloadUrl) || name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
 
                         // PDF that couldn't be displayed in-tab (octet-stream/unknown
                         // MIME) → pull it to a temp file and let the native viewer show it.
@@ -2952,21 +3271,28 @@ namespace BlackBrowser
                                 Directory.CreateDirectory(PdfTempDir);
                                 pdfViewerOrigins[dest] = downloadUrl;
                                 System.Net.ServicePointManager.SecurityProtocol |= System.Net.SecurityProtocolType.Tls12;
-                                var wc = new WebClient();
+                                WebClient wc = new WebClient();
                                 wc.DownloadFileCompleted += (ds, de) =>
                                 {
-                                    if (de.Error != null)
+                                    try
                                     {
-                                        Log("PDF: download failed: " + de.Error.Message);
-                                        ShowSoftCommunication("⚠️ PDF download failed");
-                                        pdfViewerOrigins.Remove(dest);
-                                        return;
+                                        if (de.Error != null)
+                                        {
+                                            Log("PDF: download failed: " + de.Error.Message);
+                                            ShowSoftCommunication("⚠️ PDF download failed");
+                                            pdfViewerOrigins.Remove(dest);
+                                            return;
+                                        }
+                                        Log("PDF: download ok, navigating to " + dest);
+                                        this.BeginInvoke((Action)(() =>
+                                        {
+                                            try { if (!wv.IsDisposed && wv.CoreWebView2 != null) wv.CoreWebView2.Navigate(dest); } catch (Exception ex2) { Log("PDF: navigate failed: " + ex2.Message); }
+                                        }));
                                     }
-                                    Log("PDF: download ok, navigating to " + dest);
-                                    this.BeginInvoke((Action)(() =>
+                                    finally
                                     {
-                                        try { wv.CoreWebView2.Navigate(dest); } catch (Exception ex2) { Log("PDF: navigate failed: " + ex2.Message); }
-                                    }));
+                                        try { wc.Dispose(); } catch { }
+                                    }
                                 };
                                 wc.DownloadFileAsync(new Uri(downloadUrl), dest);
                                 return;
@@ -2979,10 +3305,11 @@ namespace BlackBrowser
                         }
 
                         e.Handled = false;
-                        DownloadsManager.AddDownload(name, path ?? "", 0);
+                        CoreWebView2DownloadOperation dlOp = e.DownloadOperation;
+                        long initialSize = (dlOp != null && dlOp.TotalBytesToReceive.HasValue) ? (long)dlOp.TotalBytesToReceive.Value : 0;
+                        DownloadsManager.AddDownload(name, path ?? "", initialSize);
                         ShowSoftCommunication("📥 Download Started: " + name);
 
-                        CoreWebView2DownloadOperation dlOp = e.DownloadOperation;
                         ShelfRow row = CreateShelfRow(name, dlOp);
                         if (dlOp != null && row != null)
                         {
@@ -2992,6 +3319,10 @@ namespace BlackBrowser
 
                         if (dlOp != null)
                         {
+                            dlOp.BytesReceivedChanged += (ds, de) =>
+                            {
+                                try { UpdateShelfRow(row, dlOp); } catch { }
+                            };
                             dlOp.StateChanged += (ds, de) =>
                             {
                                 try
@@ -2999,6 +3330,12 @@ namespace BlackBrowser
                                     UpdateShelfRow(row, dlOp);
                                     if (dlOp.State == CoreWebView2DownloadState.Completed)
                                     {
+                                        long finalBytes = dlOp.BytesReceived > 0 ? dlOp.BytesReceived : initialSize;
+                                        if (finalBytes <= 0 && !string.IsNullOrEmpty(path) && File.Exists(path))
+                                        {
+                                            try { finalBytes = new FileInfo(path).Length; } catch { }
+                                        }
+                                        DownloadsManager.UpdateDownloadSize(path, finalBytes);
                                         ShowSoftCommunication("✅ Download Complete: " + name);
                                         RemoveShelfRow(dlOp, true);
                                     }
@@ -3022,7 +3359,7 @@ namespace BlackBrowser
                     catch { }
                 };
 
-                AdShieldEngine.AttachAdShield(wv, () =>
+                var unusedShieldTask = AdShieldEngine.AttachAdShield(wv, () =>
                 {
                     totalBlockedAds++;
                     UpdateShieldButtonText();
@@ -3043,102 +3380,13 @@ namespace BlackBrowser
                         return;
                     }
 
-                    pdfNavSeen = e.Uri.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
+                    pdfNavSeen = IsPdfUrl(e.Uri);
 
-                    if (e.Uri.Equals("black://home", StringComparison.OrdinalIgnoreCase) ||
-                        e.Uri.Equals("black://newtab", StringComparison.OrdinalIgnoreCase))
+                    string virtualTarget = InternalUrlRouter.ResolveToVirtualUrl(e.Uri);
+                    if (!string.IsNullOrEmpty(virtualTarget))
                     {
                         e.Cancel = true;
-                        string sdPath = SpeedDialPage.GetSpeedDialFilePath(isDarkMode);
-                        if (!string.IsNullOrEmpty(sdPath))
-                            wv.CoreWebView2.Navigate(sdPath);
-                        else
-                            wv.CoreWebView2.NavigateToString(SpeedDialPage.GetHtml(isDarkMode));
-                        if (tabControl.SelectedTab == page) { urlBar.Text = ""; page.Text = "New Tab"; }
-                        return;
-                    }
-
-                    if (e.Uri.Equals("black://history", StringComparison.OrdinalIgnoreCase) ||
-                        e.Uri.Equals("about:history", StringComparison.OrdinalIgnoreCase))
-                    {
-                        e.Cancel = true;
-                        wv.CoreWebView2.NavigateToString(HistoryManager.GetHistoryHtml(isDarkMode));
-                        if (tabControl.SelectedTab == page) { urlBar.Text = "black://history"; page.Text = "Local History"; }
-                        return;
-                    }
-
-                    if (e.Uri.Equals("black://cookies", StringComparison.OrdinalIgnoreCase) ||
-                        e.Uri.Equals("about:cookies", StringComparison.OrdinalIgnoreCase))
-                    {
-                        e.Cancel = true;
-                        CookieManager.Render(wv, isDarkMode);
-                        if (tabControl.SelectedTab == page) { urlBar.Text = "black://cookies"; page.Text = "Local Cookies"; }
-                        return;
-                    }
-
-                    if (e.Uri.Equals("black://bookmarks", StringComparison.OrdinalIgnoreCase))
-                    {
-                        e.Cancel = true;
-                        wv.CoreWebView2.NavigateToString(BookmarksManager.GetBookmarksHtml(isDarkMode));
-                        if (tabControl.SelectedTab == page) { urlBar.Text = "black://bookmarks"; page.Text = "Local Bookmarks"; }
-                        return;
-                    }
-
-                    if (e.Uri.Equals("black://downloads", StringComparison.OrdinalIgnoreCase) ||
-                        e.Uri.Equals("about:downloads", StringComparison.OrdinalIgnoreCase))
-                    {
-                        e.Cancel = true;
-                        wv.CoreWebView2.NavigateToString(DownloadsManager.GetDownloadsHtml(isDarkMode));
-                        if (tabControl.SelectedTab == page) { urlBar.Text = "black://downloads"; page.Text = "Local Downloads"; }
-                        return;
-                    }
-
-                    if (e.Uri.Equals("black://passwords", StringComparison.OrdinalIgnoreCase) ||
-                        e.Uri.Equals("about:passwords", StringComparison.OrdinalIgnoreCase))
-                    {
-                        e.Cancel = true;
-                        wv.CoreWebView2.NavigateToString(PasswordManager.GetPasswordsHtml(isDarkMode));
-                        if (tabControl.SelectedTab == page) { urlBar.Text = "black://passwords"; page.Text = "Saved Passwords"; }
-                        return;
-                    }
-
-                    if (e.Uri.Equals("black://about", StringComparison.OrdinalIgnoreCase) || e.Uri.Equals("about:about", StringComparison.OrdinalIgnoreCase))
-                    {
-                        e.Cancel = true;
-                        wv.CoreWebView2.NavigateToString(LegalPagesManager.GetAboutHtml(isDarkMode));
-                        if (tabControl.SelectedTab == page) { urlBar.Text = "black://about"; page.Text = "About Black Firefox"; }
-                        return;
-                    }
-
-                    if (e.Uri.Equals("black://terms", StringComparison.OrdinalIgnoreCase) || e.Uri.Equals("about:terms", StringComparison.OrdinalIgnoreCase))
-                    {
-                        e.Cancel = true;
-                        wv.CoreWebView2.NavigateToString(LegalPagesManager.GetTermsHtml(isDarkMode));
-                        if (tabControl.SelectedTab == page) { urlBar.Text = "black://terms"; page.Text = "Terms of Service"; }
-                        return;
-                    }
-
-                    if (e.Uri.Equals("black://privacy", StringComparison.OrdinalIgnoreCase) || e.Uri.Equals("about:privacy", StringComparison.OrdinalIgnoreCase))
-                    {
-                        e.Cancel = true;
-                        wv.CoreWebView2.NavigateToString(LegalPagesManager.GetPrivacyHtml(isDarkMode));
-                        if (tabControl.SelectedTab == page) { urlBar.Text = "black://privacy"; page.Text = "Privacy Policy"; }
-                        return;
-                    }
-
-                    if (e.Uri.Equals("black://trademark", StringComparison.OrdinalIgnoreCase) || e.Uri.Equals("about:trademark", StringComparison.OrdinalIgnoreCase))
-                    {
-                        e.Cancel = true;
-                        wv.CoreWebView2.NavigateToString(LegalPagesManager.GetTrademarkHtml(isDarkMode));
-                        if (tabControl.SelectedTab == page) { urlBar.Text = "black://trademark"; page.Text = "Trademark Notice"; }
-                        return;
-                    }
-
-                    if (e.Uri.Equals("black://extensions", StringComparison.OrdinalIgnoreCase) || e.Uri.Equals("about:extensions", StringComparison.OrdinalIgnoreCase))
-                    {
-                        e.Cancel = true;
-                        wv.CoreWebView2.NavigateToString(ExtensionManager.GetExtensionsHtml(isDarkMode));
-                        if (tabControl.SelectedTab == page) { urlBar.Text = "black://extensions"; page.Text = "Extensions"; }
+                        wv.CoreWebView2.Navigate(virtualTarget);
                         return;
                     }
 
@@ -3167,7 +3415,8 @@ namespace BlackBrowser
                                     }
                                 }
                             }
-                            wv.CoreWebView2.NavigateToString(ExtensionManager.GetExtensionsHtml(isDarkMode));
+                            if (!wv.IsDisposed && wv.CoreWebView2 != null)
+                                wv.CoreWebView2.Navigate(InternalUrlRouter.VirtualOrigin + "/extensions");
                         }));
                         return;
                     }
@@ -3176,21 +3425,10 @@ namespace BlackBrowser
                     {
                         e.Cancel = true;
                         if (!isInternalSource) return;
-                        try
-                        {
-                            string q = e.Uri.Substring(e.Uri.IndexOf('?') + 1);
-                            var parts = q.Split('&');
-                            string id = "";
-                            bool val = true;
-                            foreach (var p in parts)
-                            {
-                                if (p.StartsWith("id=")) id = p.Substring(3);
-                                if (p.StartsWith("val=")) val = p.Substring(4).Equals("true", StringComparison.OrdinalIgnoreCase);
-                            }
-                            if (!string.IsNullOrEmpty(id)) ExtensionManager.ToggleExtension(id, val);
-                        }
-                        catch { }
-                        wv.CoreWebView2.NavigateToString(ExtensionManager.GetExtensionsHtml(isDarkMode));
+                        string id = GetQueryParam(e.Uri, "id");
+                        bool val = GetQueryParam(e.Uri, "val").Equals("true", StringComparison.OrdinalIgnoreCase);
+                        if (!string.IsNullOrEmpty(id)) ExtensionManager.ToggleExtension(id, val);
+                        wv.CoreWebView2.Navigate(InternalUrlRouter.VirtualOrigin + "/extensions");
                         return;
                     }
 
@@ -3198,14 +3436,9 @@ namespace BlackBrowser
                     {
                         e.Cancel = true;
                         if (!isInternalSource) return;
-                        try
-                        {
-                            string q = e.Uri.Substring(e.Uri.IndexOf('?') + 1);
-                            string id = q.StartsWith("id=") ? q.Substring(3) : "";
-                            if (!string.IsNullOrEmpty(id)) ExtensionManager.RemoveExtension(id);
-                        }
-                        catch { }
-                        wv.CoreWebView2.NavigateToString(ExtensionManager.GetExtensionsHtml(isDarkMode));
+                        string id = GetQueryParam(e.Uri, "id");
+                        if (!string.IsNullOrEmpty(id)) ExtensionManager.RemoveExtension(id);
+                        wv.CoreWebView2.Navigate(InternalUrlRouter.VirtualOrigin + "/extensions");
                         return;
                     }
 
@@ -3213,14 +3446,16 @@ namespace BlackBrowser
                     {
                         e.Cancel = true;
                         if (!isInternalSource) return;
-                        try
+                        string site = GetQueryParam(e.Uri, "site");
+                        string user = GetQueryParam(e.Uri, "user");
+                        if (!string.IsNullOrEmpty(site))
                         {
-                            string q = e.Uri.Substring(e.Uri.IndexOf('?') + 1);
-                            string site = q.StartsWith("site=") ? Uri.UnescapeDataString(q.Substring(5)) : "";
-                            if (!string.IsNullOrEmpty(site)) PasswordManager.RemovePassword(site);
+                            if (e.Uri.IndexOf("user=", StringComparison.OrdinalIgnoreCase) >= 0)
+                                PasswordManager.RemovePassword(site, user);
+                            else
+                                PasswordManager.RemovePassword(site);
                         }
-                        catch { }
-                        wv.CoreWebView2.NavigateToString(PasswordManager.GetPasswordsHtml(isDarkMode));
+                        wv.CoreWebView2.Navigate(InternalUrlRouter.VirtualOrigin + "/passwords");
                         return;
                     }
 
@@ -3228,17 +3463,9 @@ namespace BlackBrowser
                     {
                         e.Cancel = true;
                         if (!isInternalSource) return;
-                        try
-                        {
-                            string q = e.Uri.Substring(e.Uri.IndexOf('?') + 1);
-                            string bmUrl = q.StartsWith("url=") ? Uri.UnescapeDataString(q.Substring(4)) : "";
-                            if (!string.IsNullOrEmpty(bmUrl))
-                            {
-                                BookmarksManager.RemoveBookmark(bmUrl);
-                            }
-                        }
-                        catch { }
-                        wv.CoreWebView2.NavigateToString(BookmarksManager.GetBookmarksHtml(isDarkMode));
+                        string bmUrl = GetQueryParam(e.Uri, "url");
+                        if (!string.IsNullOrEmpty(bmUrl)) BookmarksManager.RemoveBookmark(bmUrl);
+                        wv.CoreWebView2.Navigate(InternalUrlRouter.VirtualOrigin + "/bookmarks");
                         return;
                     }
 
@@ -3275,7 +3502,8 @@ namespace BlackBrowser
                                 {
                                     int imported = BookmarksManager.ImportHtml(ofd.FileName);
                                     ShowSoftCommunication("📥 Imported " + imported + " bookmarks successfully!");
-                                    wv.CoreWebView2.NavigateToString(BookmarksManager.GetBookmarksHtml(isDarkMode));
+                                    if (!wv.IsDisposed && wv.CoreWebView2 != null)
+                                        wv.CoreWebView2.Navigate(InternalUrlRouter.VirtualOrigin + "/bookmarks");
                                 }
                             }
                         }));
@@ -3286,14 +3514,9 @@ namespace BlackBrowser
                     {
                         e.Cancel = true;
                         if (!isInternalSource) return;
-                        try
-                        {
-                            string q = e.Uri.Substring(e.Uri.IndexOf('?') + 1);
-                            string histUrl = q.StartsWith("url=") ? Uri.UnescapeDataString(q.Substring(4)) : "";
-                            if (!string.IsNullOrEmpty(histUrl)) HistoryManager.RemoveHistoryItem(histUrl);
-                        }
-                        catch { }
-                        wv.CoreWebView2.NavigateToString(HistoryManager.GetHistoryHtml(isDarkMode));
+                        string histUrl = GetQueryParam(e.Uri, "url");
+                        if (!string.IsNullOrEmpty(histUrl)) HistoryManager.RemoveHistoryItem(histUrl);
+                        wv.CoreWebView2.Navigate(InternalUrlRouter.VirtualOrigin + "/history");
                         return;
                     }
 
@@ -3303,7 +3526,7 @@ namespace BlackBrowser
                         if (!isInternalSource) return;
                         HistoryManager.ClearHistory();
                         ShowSoftCommunication("🗑️ Browsing history cleared.");
-                        wv.CoreWebView2.NavigateToString(HistoryManager.GetHistoryHtml(isDarkMode));
+                        wv.CoreWebView2.Navigate(InternalUrlRouter.VirtualOrigin + "/history");
                         return;
                     }
 
@@ -3318,50 +3541,11 @@ namespace BlackBrowser
                     if (e.Uri.Equals("black://optimize-memory", StringComparison.OrdinalIgnoreCase) || e.Uri.Equals("black://purge-ram", StringComparison.OrdinalIgnoreCase))
                     {
                         e.Cancel = true;
+                        if (!isInternalSource) return;
                         MemoryTrimmer.TrimProcessMemory();
                         long ramMB = MemoryTrimmer.GetWorkingSetMB();
                         ShowSoftCommunication("⚡ Memory Purged: " + ramMB + "MB active working set");
-                        wv.CoreWebView2.NavigateToString(SpeedDialPage.GetHtml(isDarkMode));
-                        return;
-                    }
-
-                    if (e.Uri.Equals("black://doc-prd", StringComparison.OrdinalIgnoreCase))
-                    {
-                        e.Cancel = true;
-                        wv.CoreWebView2.NavigateToString(SpeedDialPage.GetPrdHtml());
-                        if (tabControl.SelectedTab == page) { urlBar.Text = "black://doc-prd"; page.Text = "PRD Template"; }
-                        return;
-                    }
-
-                    if (e.Uri.Equals("black://doc-appflow", StringComparison.OrdinalIgnoreCase))
-                    {
-                        e.Cancel = true;
-                        wv.CoreWebView2.NavigateToString(SpeedDialPage.GetAppFlowHtml());
-                        if (tabControl.SelectedTab == page) { urlBar.Text = "black://doc-appflow"; page.Text = "App Flow Template"; }
-                        return;
-                    }
-
-                    if (e.Uri.Equals("black://doc-techstack", StringComparison.OrdinalIgnoreCase))
-                    {
-                        e.Cancel = true;
-                        wv.CoreWebView2.NavigateToString(SpeedDialPage.GetTechStackHtml());
-                        if (tabControl.SelectedTab == page) { urlBar.Text = "black://doc-techstack"; page.Text = "Tech Stack Template"; }
-                        return;
-                    }
-
-                    if (e.Uri.Equals("black://doc-frontend", StringComparison.OrdinalIgnoreCase))
-                    {
-                        e.Cancel = true;
-                        wv.CoreWebView2.NavigateToString(SpeedDialPage.GetFrontendGuidelinesHtml());
-                        if (tabControl.SelectedTab == page) { urlBar.Text = "black://doc-frontend"; page.Text = "UI/UX Guidelines"; }
-                        return;
-                    }
-
-                    if (e.Uri.Equals("black://doc-backend", StringComparison.OrdinalIgnoreCase))
-                    {
-                        e.Cancel = true;
-                        wv.CoreWebView2.NavigateToString(SpeedDialPage.GetBackendStructureHtml());
-                        if (tabControl.SelectedTab == page) { urlBar.Text = "black://doc-backend"; page.Text = "Backend Schema Template"; }
+                        wv.CoreWebView2.Navigate(InternalUrlRouter.VirtualOrigin + "/home");
                         return;
                     }
 
@@ -3377,19 +3561,10 @@ namespace BlackBrowser
                     {
                         e.Cancel = true;
                         if (!isInternalSource) return;
-                        int qs = e.Uri.IndexOf('?');
-                        if (qs >= 0)
-                        {
-                            string qraw = e.Uri.Substring(qs + 1);
-                            int qeq = qraw.IndexOf('=');
-                            if (qeq >= 0)
-                            {
-                                string engine = qraw.Substring(qeq + 1).Trim().ToLowerInvariant();
-                                if (engine == "google" || engine == "duckduckgo" || engine == "bing" || engine == "youtube")
-                                    SettingsStore.SearchEngine = engine;
-                            }
-                        }
-                        wv.CoreWebView2.NavigateToString(SpeedDialPage.GetHtml(isDarkMode));
+                        string engine = GetQueryParam(e.Uri, "engine").Trim().ToLowerInvariant();
+                        if (!string.IsNullOrEmpty(engine))
+                            SettingsStore.SearchEngine = engine;
+                        wv.CoreWebView2.Navigate(InternalUrlRouter.VirtualOrigin + "/home");
                         return;
                     }
 
@@ -3397,25 +3572,126 @@ namespace BlackBrowser
                     {
                         e.Cancel = true;
                         if (!isInternalSource) return;
-                        int q = e.Uri.IndexOf('?');
-                        if (q >= 0)
+                        string dialUrl = GetQueryParam(e.Uri, "url");
+                        if (!string.IsNullOrEmpty(dialUrl))
+                            CustomDialsManager.RemoveCustomDial(dialUrl);
+                        wv.CoreWebView2.Navigate(InternalUrlRouter.VirtualOrigin + "/home");
+                        return;
+                    }
+
+                    if (e.Uri.Equals("black://new-private", StringComparison.OrdinalIgnoreCase))
+                    {
+                        e.Cancel = true;
+                        if (!isInternalSource) return;
+                        this.BeginInvoke((Action)(() => AddNewTab("Private Tab", "black://home", isPrivate: true)));
+                        return;
+                    }
+
+                    if (e.Uri.Equals("black://reopen-tab", StringComparison.OrdinalIgnoreCase))
+                    {
+                        e.Cancel = true;
+                        if (!isInternalSource) return;
+                        this.BeginInvoke((Action)(() => ReopenLastClosedTab()));
+                        return;
+                    }
+
+                    if (e.Uri.Equals("black://toggle-sidebar", StringComparison.OrdinalIgnoreCase))
+                    {
+                        e.Cancel = true;
+                        if (!isInternalSource) return;
+                        this.BeginInvoke((Action)(() => ToggleSidebar()));
+                        return;
+                    }
+
+                    if (e.Uri.Equals("black://toggle-theme", StringComparison.OrdinalIgnoreCase))
+                    {
+                        e.Cancel = true;
+                        if (!isInternalSource) return;
+                        this.BeginInvoke((Action)(() => ToggleTheme()));
+                        return;
+                    }
+
+                    if (e.Uri.Equals("black://cycle-eyecare", StringComparison.OrdinalIgnoreCase))
+                    {
+                        e.Cancel = true;
+                        if (!isInternalSource) return;
+                        this.BeginInvoke((Action)(() => CycleEyeCareMode()));
+                        return;
+                    }
+
+                    if (e.Uri.Equals("black://toggle-adshield", StringComparison.OrdinalIgnoreCase))
+                    {
+                        e.Cancel = true;
+                        if (!isInternalSource) return;
+                        SettingsStore.AdShieldEnabled = !SettingsStore.AdShieldEnabled;
+                        ShowSoftCommunication(SettingsStore.AdShieldEnabled
+                            ? "🛡️ AdShield Global Protection: Enabled"
+                            : "⏸️ AdShield Global Protection: Paused");
+                        wv.CoreWebView2.Navigate(InternalUrlRouter.VirtualOrigin + "/home");
+                        return;
+                    }
+
+                    if (e.Uri.Equals("black://toggle-https", StringComparison.OrdinalIgnoreCase))
+                    {
+                        e.Cancel = true;
+                        if (!isInternalSource) return;
+                        SettingsStore.HttpsFirstMode = !SettingsStore.HttpsFirstMode;
+                        ShowSoftCommunication(SettingsStore.HttpsFirstMode
+                            ? "🔒 HTTPS-First Upgrade: Enabled"
+                            : "🔓 HTTPS-First Upgrade: Off");
+                        wv.CoreWebView2.Navigate(InternalUrlRouter.VirtualOrigin + "/home");
+                        return;
+                    }
+
+                    if (e.Uri.StartsWith("black://setbg", StringComparison.OrdinalIgnoreCase))
+                    {
+                        e.Cancel = true;
+                        if (!isInternalSource) return;
+                        string bgVal = (GetQueryParam(e.Uri, "bg") ?? "").Trim().ToLowerInvariant();
+                        if (bgVal == "aurora" || bgVal == "cyberpunk" || bgVal == "nebula" || bgVal == "obsidian" || bgVal == "light")
                         {
-                            string raw = e.Uri.Substring(q + 1);
-                            int eq = raw.IndexOf('=');
-                            if (eq >= 0)
-                            {
-                                string dialUrl = System.Uri.UnescapeDataString(raw.Substring(eq + 1));
-                                CustomDialsManager.RemoveCustomDial(dialUrl);
-                            }
+                            SettingsStore.SpeedDialBg = bgVal;
+                            ShowSoftCommunication("🎨 New Tab Theme: " + bgVal);
+                            ReloadAllSpeedDials();
                         }
-                        wv.CoreWebView2.NavigateToString(SpeedDialPage.GetHtml(isDarkMode));
+                        return;
+                    }
+
+                    if (e.Uri.Equals("black://qr", StringComparison.OrdinalIgnoreCase))
+                    {
+                        e.Cancel = true;
+                        if (!isInternalSource) return;
+                        this.BeginInvoke((Action)(() => ShowCurrentPageQrCode()));
+                        return;
+                    }
+
+                    if (e.Uri.Equals("black://screenshot", StringComparison.OrdinalIgnoreCase))
+                    {
+                        e.Cancel = true;
+                        if (!isInternalSource) return;
+                        this.BeginInvoke((Action)(() => TakeScreenshot()));
+                        return;
+                    }
+
+                    if (e.Uri.Equals("black://settings", StringComparison.OrdinalIgnoreCase))
+                    {
+                        e.Cancel = true;
+                        if (!isInternalSource) return;
+                        this.BeginInvoke((Action)(() => OpenSettingsDialog(0)));
+                        return;
+                    }
+
+                    if (e.Uri.Equals("black://check-updates", StringComparison.OrdinalIgnoreCase))
+                    {
+                        e.Cancel = true;
+                        if (!isInternalSource) return;
+                        this.BeginInvoke((Action)(() => CheckForUpdatesUserManual()));
                         return;
                     }
 
                     if (tabControl.SelectedTab == page)
                     {
-                        string uriStr = e.Uri;
-                        urlBar.Text = (uriStr == "about:blank" || uriStr.EndsWith("speeddial.html")) ? "" : uriStr;
+                        urlBar.Text = InternalUrlRouter.GetDisplayUrl(e.Uri);
                     }
                 };
 
@@ -3424,10 +3700,9 @@ namespace BlackBrowser
                     try
                     {
                         if (wv.IsDisposed || page.IsDisposed) return;
-                        string favUri = wv.CoreWebView2.FaviconUri;
-                        if (!string.IsNullOrEmpty(favUri) && favUri.StartsWith("http"))
+                        if (tabControl.SelectedTab == page)
                         {
-                            this.BeginInvoke((Action)(() => SetFavicon(favUri)));
+                            this.BeginInvoke((Action)(() => FetchAndSetTabFavicon(wv, page)));
                         }
                     }
                     catch { }
@@ -3436,33 +3711,44 @@ namespace BlackBrowser
                 wv.CoreWebView2.NavigationCompleted += (s, e) =>
                 {
                     if (wv.IsDisposed || page.IsDisposed) return;
+                    string uriStr = wv.Source != null ? wv.Source.ToString() : "";
+                    string originalUrl = null;
+                    string internalDefaultTitle = InternalUrlRouter.GetDefaultTitle(uriStr);
+
                     if (tabControl.SelectedTab == page)
                     {
-                        string uriStr = wv.Source != null ? wv.Source.ToString() : "";
-                        string originalUrl = null;
                         if (pdfViewerOrigins.TryGetValue(uriStr, out originalUrl))
                         {
-                            uriStr = originalUrl;
-                            if (tabControl.SelectedTab == page) { urlBar.Text = originalUrl; page.Text = TruncateTitle(Path.GetFileName(new Uri(originalUrl).AbsolutePath) ?? "PDF"); }
+                            urlBar.Text = originalUrl;
+                            page.Text = TruncateTitle(Path.GetFileName(new Uri(originalUrl).AbsolutePath) ?? "PDF");
                         }
                         else
                         {
-                            urlBar.Text = (uriStr == "about:blank" || uriStr.EndsWith("speeddial.html")) ? "" : uriStr;
+                            urlBar.Text = InternalUrlRouter.GetDisplayUrl(uriStr);
+                            string docTitle = wv.CoreWebView2.DocumentTitle;
+                            string pageName = !string.IsNullOrEmpty(internalDefaultTitle)
+                                ? internalDefaultTitle
+                                : (string.IsNullOrEmpty(docTitle) ? "New Tab" : TruncateTitle(docTitle));
+                            page.Text = isPrivate ? "🕵️ " + pageName : pageName;
                         }
-
-                        string pageName = string.IsNullOrEmpty(wv.CoreWebView2.DocumentTitle) || wv.CoreWebView2.DocumentTitle == "speeddial.html"
-                            ? "New Tab" : TruncateTitle(wv.CoreWebView2.DocumentTitle);
-
-                        page.Text = isPrivate ? "🕵️ " + pageName : pageName;
                         tabControl.Invalidate();
                         UpdateNavButtons();
                     }
-
-                    string sourceUri = wv.Source != null ? wv.Source.ToString() : "";
-                    if (!isPrivate && sourceUri.Length > 0 && !sourceUri.EndsWith("speeddial.html") && !pdfViewerOrigins.ContainsKey(sourceUri))
+                    else
                     {
-                        HistoryManager.AddVisit(wv.CoreWebView2.DocumentTitle, sourceUri);
+                        string docTitle = wv.CoreWebView2.DocumentTitle;
+                        string pageName = !string.IsNullOrEmpty(internalDefaultTitle)
+                            ? internalDefaultTitle
+                            : (string.IsNullOrEmpty(docTitle) ? "New Tab" : TruncateTitle(docTitle));
+                        page.Text = isPrivate ? "🕵️ " + pageName : pageName;
+                        tabControl.Invalidate();
                     }
+
+                    if (!isPrivate && uriStr.Length > 0 && !InternalUrlRouter.IsInternalOrigin(uriStr) && !pdfViewerOrigins.ContainsKey(uriStr))
+                    {
+                        HistoryManager.AddVisit(wv.CoreWebView2.DocumentTitle, uriStr);
+                    }
+                    if (!isPrivate) SaveCurrentSession();
                 };
 
                 wv.CoreWebView2.SourceChanged += (s, e) =>
@@ -3478,7 +3764,7 @@ namespace BlackBrowser
                         }
                         else
                         {
-                            urlBar.Text = (uriStr == "about:blank" || uriStr.EndsWith("speeddial.html")) ? "" : uriStr;
+                            urlBar.Text = InternalUrlRouter.GetDisplayUrl(uriStr);
                         }
                     }
                 };
@@ -3486,76 +3772,14 @@ namespace BlackBrowser
                 if (newWindowArgs != null)
                 {
                     newWindowArgs.NewWindow = wv.CoreWebView2;
-                    if (deferral != null) deferral.Complete();
+                    if (deferral != null) { deferral.Complete(); deferralCompleted = true; }
+                    return;
                 }
 
-                if (url == "about:blank" || string.IsNullOrEmpty(url) || url == "black://home" || url == "black://newtab")
+                string initialVirtual = InternalUrlRouter.ResolveToVirtualUrl(url);
+                if (!string.IsNullOrEmpty(initialVirtual))
                 {
-                    string sdPath = SpeedDialPage.GetSpeedDialFilePath(isDarkMode);
-                    if (!string.IsNullOrEmpty(sdPath))
-                        wv.CoreWebView2.Navigate(sdPath);
-                    else
-                        wv.CoreWebView2.NavigateToString(SpeedDialPage.GetHtml(isDarkMode));
-                }
-                else if (url == "black://history" || url == "about:history")
-                {
-                    wv.CoreWebView2.NavigateToString(HistoryManager.GetHistoryHtml(isDarkMode));
-                }
-                else if (url == "black://cookies" || url == "about:cookies")
-                {
-                    CookieManager.Render(wv);
-                }
-                else if (url == "black://bookmarks")
-                {
-                    wv.CoreWebView2.NavigateToString(BookmarksManager.GetBookmarksHtml(isDarkMode));
-                }
-                else if (url == "black://downloads" || url == "about:downloads")
-                {
-                    wv.CoreWebView2.NavigateToString(DownloadsManager.GetDownloadsHtml(isDarkMode));
-                }
-                else if (url == "black://passwords" || url == "about:passwords")
-                {
-                    wv.CoreWebView2.NavigateToString(PasswordManager.GetPasswordsHtml(isDarkMode));
-                }
-                else if (url == "black://about" || url == "about:about")
-                {
-                    wv.CoreWebView2.NavigateToString(LegalPagesManager.GetAboutHtml(isDarkMode));
-                }
-                else if (url == "black://terms" || url == "about:terms")
-                {
-                    wv.CoreWebView2.NavigateToString(LegalPagesManager.GetTermsHtml(isDarkMode));
-                }
-                else if (url == "black://privacy" || url == "about:privacy")
-                {
-                    wv.CoreWebView2.NavigateToString(LegalPagesManager.GetPrivacyHtml(isDarkMode));
-                }
-                else if (url == "black://trademark" || url == "about:trademark")
-                {
-                    wv.CoreWebView2.NavigateToString(LegalPagesManager.GetTrademarkHtml(isDarkMode));
-                }
-                else if (url == "black://extensions" || url == "about:extensions")
-                {
-                    wv.CoreWebView2.NavigateToString(ExtensionManager.GetExtensionsHtml(isDarkMode));
-                }
-                else if (url == "black://doc-prd")
-                {
-                    wv.CoreWebView2.NavigateToString(SpeedDialPage.GetPrdHtml());
-                }
-                else if (url == "black://doc-appflow")
-                {
-                    wv.CoreWebView2.NavigateToString(SpeedDialPage.GetAppFlowHtml());
-                }
-                else if (url == "black://doc-techstack")
-                {
-                    wv.CoreWebView2.NavigateToString(SpeedDialPage.GetTechStackHtml());
-                }
-                else if (url == "black://doc-frontend")
-                {
-                    wv.CoreWebView2.NavigateToString(SpeedDialPage.GetFrontendGuidelinesHtml());
-                }
-                else if (url == "black://doc-backend")
-                {
-                    wv.CoreWebView2.NavigateToString(SpeedDialPage.GetBackendStructureHtml());
+                    wv.CoreWebView2.Navigate(initialVirtual);
                 }
                 else
                 {
@@ -3565,6 +3789,13 @@ namespace BlackBrowser
             catch (Exception ex)
             {
                 Log("AddNewTab ERROR: " + ex.ToString());
+            }
+            finally
+            {
+                if (deferral != null && !deferralCompleted)
+                {
+                    try { deferral.Complete(); } catch { }
+                }
             }
         }
 
@@ -3600,11 +3831,14 @@ namespace BlackBrowser
         private void OnTabChanged(object sender, EventArgs e)
         {
             HideFindBar();
+            if (pwPrompt != null) { pwPrompt.Visible = false; pwCandidate = null; pwPromptIsAutofill = false; }
+
+            TabPage activePage = tabControl.SelectedTab;
             WebView2 wv = GetCurrentWebView();
             if (wv != null && wv.CoreWebView2 != null && wv.Source != null)
             {
                 string uriStr = wv.Source.ToString();
-                urlBar.Text = (uriStr == "about:blank" || uriStr.EndsWith("speeddial.html")) ? "" : uriStr;
+                urlBar.Text = InternalUrlRouter.GetDisplayUrl(uriStr);
                 UpdateNavButtons();
 
                 bool isBkd = BookmarksManager.IsBookmarked(uriStr);
@@ -3619,100 +3853,68 @@ namespace BlackBrowser
                     starBtn.ForeColor = isDarkMode ? Color.FromArgb(200, 205, 220) : Color.FromArgb(95, 99, 104);
                 }
 
-                string favUri = wv.CoreWebView2.FaviconUri;
-                if (!string.IsNullOrEmpty(favUri) && favUri.StartsWith("http") && !uriStr.EndsWith("speeddial.html"))
-                    SetFavicon(favUri);
-                else
-                    SetFavicon("");
+                FetchAndSetTabFavicon(wv, activePage);
             }
             else
             {
+                ClearFavicon();
                 UpdateNavButtons();
             }
 
             UpdateReaderButtonState();
-            lruTabManager.Touch(tabControl.SelectedTab);
+            lruTabManager.Touch(activePage);
             PositionOmnibox();
             this.BeginInvoke((Action)(() => UpdateNewTabButtonPosition()));
-            SuspendBackgroundWebViews();
+            SaveCurrentSession();
         }
 
-        private void SetFavicon(string uri)
+        private void ClearFavicon()
+        {
+            if (faviconBox == null) return;
+            faviconBox.Visible = false;
+            if (faviconBox.Image != null)
+            {
+                faviconBox.Image.Dispose();
+                faviconBox.Image = null;
+            }
+        }
+
+        private async void FetchAndSetTabFavicon(WebView2 wv, TabPage page)
         {
             if (faviconBox == null) return;
             try
             {
-                if (string.IsNullOrEmpty(uri))
+                if (wv == null || wv.IsDisposed || wv.CoreWebView2 == null || page == null || page.IsDisposed || tabControl.SelectedTab != page)
+                    return;
+
+                string uriStr = wv.Source != null ? wv.Source.ToString() : "";
+                if (string.IsNullOrEmpty(uriStr) || InternalUrlRouter.IsInternalOrigin(uriStr))
                 {
-                    faviconBox.Visible = false;
-                    if (faviconBox.Image != null)
-                    {
-                        faviconBox.Image.Dispose();
-                        faviconBox.Image = null;
-                    }
+                    ClearFavicon();
                     return;
                 }
 
-                string fetchUri = uri;
-                System.Threading.Tasks.Task.Factory.StartNew(() =>
+                using (Stream st = await wv.CoreWebView2.GetFaviconAsync(CoreWebView2FaviconImageFormat.Png))
                 {
-                    System.Drawing.Image img = null;
-                    try
+                    if (this.IsDisposed || faviconBox == null || tabControl.SelectedTab != page) return;
+                    if (st != null && st.Length > 0)
                     {
-                        System.Net.WebRequest req = System.Net.WebRequest.Create(fetchUri);
-                        req.Timeout = 4000;
-                        using (System.Net.WebResponse resp = req.GetResponse())
-                        using (System.IO.Stream st = resp.GetResponseStream())
-                        {
-                            img = System.Drawing.Image.FromStream(st);
-                        }
+                        Image img = Image.FromStream(st);
+                        Image old = faviconBox.Image;
+                        faviconBox.Image = img;
+                        if (old != null) old.Dispose();
+                        faviconBox.Visible = true;
                     }
-                    catch { }
-                    this.BeginInvoke((Action)(() =>
+                    else
                     {
-                        try
-                        {
-                            if (faviconBox == null) { if (img != null) img.Dispose(); return; }
-                            if (img != null)
-                            {
-                                System.Drawing.Image old = faviconBox.Image;
-                                faviconBox.Image = img;
-                                if (old != null) old.Dispose();
-                                faviconBox.Visible = true;
-                            }
-                            else
-                            {
-                                faviconBox.Visible = false;
-                                if (faviconBox.Image != null)
-                                {
-                                    faviconBox.Image.Dispose();
-                                    faviconBox.Image = null;
-                                }
-                            }
-                        }
-                        catch { if (img != null) img.Dispose(); }
-                    }));
-                });
+                        ClearFavicon();
+                    }
+                }
             }
             catch
             {
-                faviconBox.Visible = false;
+                if (tabControl.SelectedTab == page) ClearFavicon();
             }
-        }
-
-        private void SuspendBackgroundWebViews()
-        {
-            TabPage current = tabControl.SelectedTab;
-            foreach (TabPage page in tabControl.TabPages)
-            {
-                if (page == current) continue;
-                WebView2 wv = GetWebView(page);
-                if (wv != null && wv.CoreWebView2 != null)
-                {
-                    try { wv.CoreWebView2.TrySuspendAsync(); } catch { }
-                }
-            }
-            ResumeActiveWebView();
         }
 
         private void UpdateNavButtons()
@@ -3737,145 +3939,21 @@ namespace BlackBrowser
             WebView2 wv = GetCurrentWebView();
             if (wv != null && wv.CoreWebView2 != null)
             {
-                if (string.IsNullOrWhiteSpace(input) || input == "about:blank" || input.Equals("black://home", StringComparison.OrdinalIgnoreCase) || input.Equals("black://newtab", StringComparison.OrdinalIgnoreCase))
-                {
-                    string sdPath = SpeedDialPage.GetSpeedDialFilePath(isDarkMode);
-                    if (!string.IsNullOrEmpty(sdPath))
-                        wv.CoreWebView2.Navigate(sdPath);
-                    else
-                        wv.CoreWebView2.NavigateToString(SpeedDialPage.GetHtml(isDarkMode));
-                    urlBar.Text = "";
-                    if (tabControl.SelectedTab != null) tabControl.SelectedTab.Text = "New Tab";
-                    return;
-                }
-
-                if (input.Equals("black://history", StringComparison.OrdinalIgnoreCase) ||
-                    input.Equals("about:history", StringComparison.OrdinalIgnoreCase))
-                {
-                    wv.CoreWebView2.NavigateToString(HistoryManager.GetHistoryHtml(isDarkMode));
-                    urlBar.Text = "black://history";
-                    if (tabControl.SelectedTab != null) tabControl.SelectedTab.Text = "Local History";
-                    return;
-                }
-
-                if (input.Equals("black://cookies", StringComparison.OrdinalIgnoreCase) ||
-                    input.Equals("about:cookies", StringComparison.OrdinalIgnoreCase))
-                {
-                    CookieManager.Render(wv, isDarkMode);
-                    urlBar.Text = "black://cookies";
-                    if (tabControl.SelectedTab != null) tabControl.SelectedTab.Text = "Local Cookies";
-                    return;
-                }
-
-                if (input.Equals("black://bookmarks", StringComparison.OrdinalIgnoreCase))
-                {
-                    wv.CoreWebView2.NavigateToString(BookmarksManager.GetBookmarksHtml(isDarkMode));
-                    urlBar.Text = "black://bookmarks";
-                    if (tabControl.SelectedTab != null) tabControl.SelectedTab.Text = "Local Bookmarks";
-                    return;
-                }
-
-                if (input.Equals("black://downloads", StringComparison.OrdinalIgnoreCase) ||
-                    input.Equals("about:downloads", StringComparison.OrdinalIgnoreCase))
-                {
-                    wv.CoreWebView2.NavigateToString(DownloadsManager.GetDownloadsHtml(isDarkMode));
-                    urlBar.Text = "black://downloads";
-                    if (tabControl.SelectedTab != null) tabControl.SelectedTab.Text = "Local Downloads";
-                    return;
-                }
-
-                if (input.Equals("black://passwords", StringComparison.OrdinalIgnoreCase) ||
-                    input.Equals("about:passwords", StringComparison.OrdinalIgnoreCase))
-                {
-                    wv.CoreWebView2.NavigateToString(PasswordManager.GetPasswordsHtml(isDarkMode));
-                    urlBar.Text = "black://passwords";
-                    if (tabControl.SelectedTab != null) tabControl.SelectedTab.Text = "Saved Passwords";
-                    return;
-                }
-
-                if (input.Equals("black://about", StringComparison.OrdinalIgnoreCase) || input.Equals("about:about", StringComparison.OrdinalIgnoreCase))
-                {
-                    wv.CoreWebView2.NavigateToString(LegalPagesManager.GetAboutHtml(isDarkMode));
-                    urlBar.Text = "black://about";
-                    if (tabControl.SelectedTab != null) tabControl.SelectedTab.Text = "About Black Firefox";
-                    return;
-                }
-
-                if (input.Equals("black://terms", StringComparison.OrdinalIgnoreCase) || input.Equals("about:terms", StringComparison.OrdinalIgnoreCase))
-                {
-                    wv.CoreWebView2.NavigateToString(LegalPagesManager.GetTermsHtml(isDarkMode));
-                    urlBar.Text = "black://terms";
-                    if (tabControl.SelectedTab != null) tabControl.SelectedTab.Text = "Terms of Service";
-                    return;
-                }
-
-                if (input.Equals("black://privacy", StringComparison.OrdinalIgnoreCase) || input.Equals("about:privacy", StringComparison.OrdinalIgnoreCase))
-                {
-                    wv.CoreWebView2.NavigateToString(LegalPagesManager.GetPrivacyHtml(isDarkMode));
-                    urlBar.Text = "black://privacy";
-                    if (tabControl.SelectedTab != null) tabControl.SelectedTab.Text = "Privacy Policy";
-                    return;
-                }
-
-                if (input.Equals("black://trademark", StringComparison.OrdinalIgnoreCase) || input.Equals("about:trademark", StringComparison.OrdinalIgnoreCase))
-                {
-                    wv.CoreWebView2.NavigateToString(LegalPagesManager.GetTrademarkHtml(isDarkMode));
-                    urlBar.Text = "black://trademark";
-                    if (tabControl.SelectedTab != null) tabControl.SelectedTab.Text = "Trademark Notice";
-                    return;
-                }
-
-                if (input.Equals("black://extensions", StringComparison.OrdinalIgnoreCase) || input.Equals("about:extensions", StringComparison.OrdinalIgnoreCase))
-                {
-                    wv.CoreWebView2.NavigateToString(ExtensionManager.GetExtensionsHtml(isDarkMode));
-                    urlBar.Text = "black://extensions";
-                    if (tabControl.SelectedTab != null) tabControl.SelectedTab.Text = "Extensions";
-                    return;
-                }
-
-                if (input.Equals("black://default-browser", StringComparison.OrdinalIgnoreCase) || input.Equals("black://set-default", StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(input, "black://default-browser", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(input, "black://set-default", StringComparison.OrdinalIgnoreCase))
                 {
                     SetAsDefaultBrowser();
                     return;
                 }
 
-                if (input.Equals("black://doc-prd", StringComparison.OrdinalIgnoreCase))
+                string virtualTarget = InternalUrlRouter.ResolveToVirtualUrl(input);
+                if (!string.IsNullOrEmpty(virtualTarget))
                 {
-                    wv.CoreWebView2.NavigateToString(SpeedDialPage.GetPrdHtml());
-                    urlBar.Text = "black://doc-prd";
-                    if (tabControl.SelectedTab != null) tabControl.SelectedTab.Text = "PRD Template";
-                    return;
-                }
-
-                if (input.Equals("black://doc-appflow", StringComparison.OrdinalIgnoreCase))
-                {
-                    wv.CoreWebView2.NavigateToString(SpeedDialPage.GetAppFlowHtml());
-                    urlBar.Text = "black://doc-appflow";
-                    if (tabControl.SelectedTab != null) tabControl.SelectedTab.Text = "App Flow Template";
-                    return;
-                }
-
-                if (input.Equals("black://doc-techstack", StringComparison.OrdinalIgnoreCase))
-                {
-                    wv.CoreWebView2.NavigateToString(SpeedDialPage.GetTechStackHtml());
-                    urlBar.Text = "black://doc-techstack";
-                    if (tabControl.SelectedTab != null) tabControl.SelectedTab.Text = "Tech Stack Template";
-                    return;
-                }
-
-                if (input.Equals("black://doc-frontend", StringComparison.OrdinalIgnoreCase))
-                {
-                    wv.CoreWebView2.NavigateToString(SpeedDialPage.GetFrontendGuidelinesHtml());
-                    urlBar.Text = "black://doc-frontend";
-                    if (tabControl.SelectedTab != null) tabControl.SelectedTab.Text = "UI/UX Guidelines";
-                    return;
-                }
-
-                if (input.Equals("black://doc-backend", StringComparison.OrdinalIgnoreCase))
-                {
-                    wv.CoreWebView2.NavigateToString(SpeedDialPage.GetBackendStructureHtml());
-                    urlBar.Text = "black://doc-backend";
-                    if (tabControl.SelectedTab != null) tabControl.SelectedTab.Text = "Backend Schema Template";
+                    wv.CoreWebView2.Navigate(virtualTarget);
+                    urlBar.Text = InternalUrlRouter.GetDisplayUrl(virtualTarget);
+                    string defTitle = InternalUrlRouter.GetDefaultTitle(virtualTarget);
+                    if (tabControl.SelectedTab != null && !string.IsNullOrEmpty(defTitle))
+                        tabControl.SelectedTab.Text = defTitle;
                     return;
                 }
 
@@ -3922,7 +4000,7 @@ namespace BlackBrowser
                     {
                         CustomDialsManager.AddCustomDial(title, url);
                         if (wv != null && wv.CoreWebView2 != null)
-                            wv.CoreWebView2.NavigateToString(SpeedDialPage.GetHtml(dark));
+                            wv.CoreWebView2.Navigate(InternalUrlRouter.VirtualOrigin + "/home");
                     }
                 }
             }
@@ -3998,44 +4076,122 @@ namespace BlackBrowser
         private void ShowMainWindow()
         {
             this.Show();
-            this.WindowState = FormWindowState.Normal;
+            if (this.WindowState == FormWindowState.Minimized)
+            {
+                this.WindowState = (SettingsStore.WindowState == FormWindowState.Maximized)
+                    ? FormWindowState.Maximized
+                    : FormWindowState.Normal;
+            }
             this.BringToFront();
             this.Activate();
+            Program.ForceForegroundWindow(this.Handle);
             ResumeActiveWebView();
+            if (eyeCareOverlay != null) eyeCareOverlay.SyncToOwner(this);
+        }
+
+        private void SaveCurrentSession()
+        {
+            if (restoringSession) return;
+            try
+            {
+                if (tabControl == null || tabControl.IsDisposed) return;
+                List<SessionTabEntry> entries = new List<SessionTabEntry>();
+                int activeIdx = 0;
+                for (int i = 0; i < tabControl.TabPages.Count; i++)
+                {
+                    TabPage page = tabControl.TabPages[i];
+                    if (page.Tag != null && (bool)page.Tag == true) continue; // never persist private tabs
+                    WebView2 wv = GetWebView(page);
+                    string raw = (wv != null && wv.Source != null) ? wv.Source.ToString() : "";
+                    string disp = InternalUrlRouter.GetDisplayUrl(raw);
+                    string urlToSave = !string.IsNullOrEmpty(disp)
+                        ? disp
+                        : (InternalUrlRouter.IsInternalOrigin(raw) || string.IsNullOrEmpty(raw) || raw == "about:blank" ? "black://home" : raw);
+                    if (page == tabControl.SelectedTab) activeIdx = entries.Count;
+                    entries.Add(new SessionTabEntry
+                    {
+                        Title = page.Text,
+                        Url = urlToSave,
+                        Pinned = pinnedTabs.Contains(page)
+                    });
+                }
+                SessionManager.SaveSession(entries, activeIdx);
+            }
+            catch { }
         }
 
         private void ExitApp()
         {
+            SaveCurrentSession();
             if (trayIcon != null) trayIcon.Visible = false;
             Application.Exit();
         }
 
+        private bool IsBrowserShortcut(bool ctrl, bool shift, bool alt, Keys keyCode, bool fromWebView)
+        {
+            if (ctrl && shift)
+            {
+                if (keyCode == Keys.T || keyCode == Keys.K || keyCode == Keys.A || keyCode == Keys.P ||
+                    keyCode == Keys.I || keyCode == Keys.N || keyCode == Keys.E || keyCode == Keys.D ||
+                    keyCode == Keys.Delete || keyCode == Keys.B || keyCode == Keys.R || keyCode == Keys.X ||
+                    keyCode == Keys.Tab)
+                    return true;
+            }
+            if (ctrl && !alt)
+            {
+                if (keyCode == Keys.T || keyCode == Keys.W || keyCode == Keys.Oemplus || keyCode == Keys.Add ||
+                    keyCode == Keys.OemMinus || keyCode == Keys.Subtract || keyCode == Keys.D0 || keyCode == Keys.NumPad0 ||
+                    keyCode == Keys.U || keyCode == Keys.P || keyCode == Keys.F || keyCode == Keys.G ||
+                    keyCode == Keys.Tab || (keyCode >= Keys.D1 && keyCode <= Keys.D9) ||
+                    keyCode == Keys.L || keyCode == Keys.E || keyCode == Keys.K || keyCode == Keys.D ||
+                    keyCode == Keys.N || keyCode == Keys.Oemcomma || keyCode == Keys.R || keyCode == Keys.H || keyCode == Keys.J)
+                    return true;
+            }
+            if (alt && !ctrl)
+            {
+                if (keyCode == Keys.D || keyCode == Keys.Home || keyCode == Keys.Left || keyCode == Keys.Right)
+                    return true;
+            }
+            if (!ctrl && !alt)
+            {
+                if (keyCode == Keys.F5 || keyCode == Keys.F6 || keyCode == Keys.F11 || keyCode == Keys.F12)
+                    return true;
+                if (keyCode == Keys.Escape && (!fromWebView || isFullscreen))
+                    return true;
+            }
+            return false;
+        }
+
         private void OnFormKeyDown(object sender, KeyEventArgs e)
         {
-            // === Ctrl+Shift combos (check these FIRST to avoid conflicts) ===
-            if (e.Control && e.Shift && e.KeyCode == Keys.T)
+            if (IsBrowserShortcut(e.Control, e.Shift, e.Alt, e.KeyCode, false))
             {
                 e.SuppressKeyPress = true;
+                ExecuteBrowserShortcut(e.Control, e.Shift, e.Alt, e.KeyCode);
+            }
+        }
+
+        private void ExecuteBrowserShortcut(bool ctrl, bool shift, bool alt, Keys keyCode)
+        {
+            // === Ctrl+Shift combos (check these FIRST to avoid conflicts) ===
+            if (ctrl && shift && keyCode == Keys.T)
+            {
                 ReopenLastClosedTab();
             }
-            else if (e.Control && e.Shift && e.KeyCode == Keys.K)
+            else if (ctrl && shift && keyCode == Keys.K)
             {
-                e.SuppressKeyPress = true;
                 DuplicateCurrentTab();
             }
-            else if (e.Control && e.Shift && e.KeyCode == Keys.A)
+            else if (ctrl && shift && keyCode == Keys.A)
             {
-                e.SuppressKeyPress = true;
                 ShowTabSearchPopup();
             }
-            else if (e.Control && e.Shift && e.KeyCode == Keys.P)
+            else if (ctrl && shift && keyCode == Keys.P)
             {
-                e.SuppressKeyPress = true;
                 AddNewTab("Private Tab", "black://home", isPrivate: true);
             }
-            else if (e.Control && e.Shift && e.KeyCode == Keys.I)
+            else if (ctrl && shift && keyCode == Keys.I)
             {
-                e.SuppressKeyPress = true;
                 if (!SettingsStore.AllowDeveloperTools)
                 {
                     ShowSoftCommunication("🔒 Developer tools are disabled in this build.");
@@ -4047,85 +4203,57 @@ namespace BlackBrowser
                     try { wv.CoreWebView2.OpenDevToolsWindow(); } catch { }
                 }
             }
-            else if (e.Control && e.Shift && e.KeyCode == Keys.N)
+            else if (ctrl && shift && keyCode == Keys.N)
             {
-                e.SuppressKeyPress = true;
-                OpenSettingsDialog(2);
+                OpenSettingsDialog(3);
             }
-            else if (e.Control && e.Shift && e.KeyCode == Keys.E)
+            else if (ctrl && shift && keyCode == Keys.E)
             {
-                e.SuppressKeyPress = true;
                 CycleEyeCareMode();
             }
-            else if (e.Control && e.Shift && e.KeyCode == Keys.D)
+            else if (ctrl && shift && keyCode == Keys.D)
             {
-                e.SuppressKeyPress = true;
                 ToggleTheme();
             }
-            else if (e.Control && e.Shift && e.KeyCode == Keys.Delete)
+            else if (ctrl && shift && keyCode == Keys.Delete)
             {
-                e.SuppressKeyPress = true;
                 ShowClearBrowsingDataDialog();
             }
-            else if (e.Control && e.Shift && e.KeyCode == Keys.B)
+            else if (ctrl && shift && keyCode == Keys.B)
             {
-                e.SuppressKeyPress = true;
                 ToggleSidebar();
             }
-            else if (e.Control && e.Shift && e.KeyCode == Keys.R)
+            else if (ctrl && shift && keyCode == Keys.R)
             {
-                e.SuppressKeyPress = true;
                 ToggleReaderMode();
             }
-            else if (e.Control && e.Shift && e.KeyCode == Keys.X)
+            else if (ctrl && shift && keyCode == Keys.X)
             {
-                e.SuppressKeyPress = true;
                 NavigateCurrentTab("black://extensions");
             }
             // === Ctrl combos ===
-            else if (e.Control && e.KeyCode == Keys.T)
+            else if (ctrl && keyCode == Keys.T)
             {
-                e.SuppressKeyPress = true;
                 AddNewTab("New Tab", "black://home");
             }
-            else if (e.Control && e.KeyCode == Keys.W)
+            else if (ctrl && keyCode == Keys.W)
             {
-                e.SuppressKeyPress = true;
                 CloseCurrentTab();
             }
-            else if (e.Control && (e.KeyCode == Keys.Oemplus || e.KeyCode == Keys.Add))
+            else if (ctrl && (keyCode == Keys.Oemplus || keyCode == Keys.Add))
             {
-                e.SuppressKeyPress = true;
-                WebView2 wv = GetCurrentWebView();
-                if (wv != null)
-                {
-                    wv.ZoomFactor = Math.Min(5.0, wv.ZoomFactor + 0.1);
-                    ShowSoftCommunication("🔍 Zoom: " + (int)(wv.ZoomFactor * 100) + "%");
-                }
+                AdjustZoom(0.1f);
             }
-            else if (e.Control && (e.KeyCode == Keys.OemMinus || e.KeyCode == Keys.Subtract))
+            else if (ctrl && (keyCode == Keys.OemMinus || keyCode == Keys.Subtract))
             {
-                e.SuppressKeyPress = true;
-                WebView2 wv = GetCurrentWebView();
-                if (wv != null)
-                {
-                    wv.ZoomFactor = Math.Max(0.25, wv.ZoomFactor - 0.1);
-                    ShowSoftCommunication("🔍 Zoom: " + (int)(wv.ZoomFactor * 100) + "%");
-                }
+                AdjustZoom(-0.1f);
             }
-            else if (e.Control && (e.KeyCode == Keys.D0 || e.KeyCode == Keys.NumPad0))
+            else if (ctrl && (keyCode == Keys.D0 || keyCode == Keys.NumPad0))
             {
-                e.SuppressKeyPress = true;
-                WebView2 wv = GetCurrentWebView();
-                if (wv != null)
-                {
-                    wv.ZoomFactor = 1.0;
-                    ShowSoftCommunication("🔍 Zoom Reset: 100%");
-                }
+                AdjustZoom(0f, true);
             }
-            else if (e.Control && e.KeyCode == Keys.U)
+            else if (ctrl && keyCode == Keys.U)
             {
-                e.SuppressKeyPress = true;
                 WebView2 wv = GetCurrentWebView();
                 if (wv != null && wv.Source != null)
                 {
@@ -4134,145 +4262,124 @@ namespace BlackBrowser
                         AddNewTab("Source", "view-source:" + currUrl);
                 }
             }
-            else if (e.Control && e.KeyCode == Keys.P)
+            else if (ctrl && keyCode == Keys.P)
             {
-                e.SuppressKeyPress = true;
                 WebView2 wv = GetCurrentWebView();
                 if (wv != null && wv.CoreWebView2 != null)
                 {
                     try { wv.CoreWebView2.ShowPrintUI(CoreWebView2PrintDialogKind.Browser); } catch { }
                 }
             }
-            else if (e.Control && e.KeyCode == Keys.F)
+            else if (ctrl && keyCode == Keys.F)
             {
-                e.SuppressKeyPress = true;
                 WebView2 wv = GetCurrentWebView();
                 if (wv != null) ShowFindBar(wv);
             }
-            else if (e.Control && e.KeyCode == Keys.G)
+            else if (ctrl && keyCode == Keys.G)
             {
-                // Find next (alias)
-                e.SuppressKeyPress = true;
                 RunFind(false);
             }
-            else if (e.Control && e.KeyCode == Keys.Tab)
+            else if (ctrl && keyCode == Keys.Tab)
             {
-                e.SuppressKeyPress = true;
                 if (tabControl.TabPages.Count > 1)
                 {
-                    int nextIdx = e.Shift
+                    int nextIdx = shift
                         ? (tabControl.SelectedIndex - 1 + tabControl.TabPages.Count) % tabControl.TabPages.Count
                         : (tabControl.SelectedIndex + 1) % tabControl.TabPages.Count;
                     tabControl.SelectedIndex = nextIdx;
                 }
             }
-            else if (e.Control && e.KeyCode >= Keys.D1 && e.KeyCode <= Keys.D8)
+            else if (ctrl && keyCode >= Keys.D1 && keyCode <= Keys.D8)
             {
-                e.SuppressKeyPress = true;
-                int targetIdx = e.KeyCode - Keys.D1;
+                int targetIdx = keyCode - Keys.D1;
                 if (targetIdx < tabControl.TabPages.Count)
                     tabControl.SelectedIndex = targetIdx;
             }
-            else if (e.Control && e.KeyCode == Keys.D9)
+            else if (ctrl && keyCode == Keys.D9)
             {
-                e.SuppressKeyPress = true;
                 if (tabControl.TabPages.Count > 0)
                     tabControl.SelectedIndex = tabControl.TabPages.Count - 1;
             }
-            else if (e.Control && e.KeyCode == Keys.L)
+            else if (ctrl && keyCode == Keys.L)
             {
-                e.SuppressKeyPress = true;
                 urlBar.Focus();
                 urlBar.SelectAll();
             }
-            else if (e.Control && (e.KeyCode == Keys.E || e.KeyCode == Keys.K))
+            else if (ctrl && (keyCode == Keys.E || keyCode == Keys.K))
             {
-                // Focus address bar in search mode (like Chrome)
-                e.SuppressKeyPress = true;
                 urlBar.Focus();
                 urlBar.Clear();
             }
-            else if (e.Control && e.KeyCode == Keys.D)
+            else if (ctrl && keyCode == Keys.D)
             {
-                e.SuppressKeyPress = true;
                 ToggleCurrentTabBookmark();
             }
-            else if (e.Control && e.KeyCode == Keys.N)
+            else if (ctrl && keyCode == Keys.N)
             {
-                // Open new window (new instance)
-                e.SuppressKeyPress = true;
-                try { Process.Start(Application.ExecutablePath); } catch { }
+                try { Process.Start(Application.ExecutablePath, "--newwindow"); } catch { }
             }
-            else if (e.Control && e.KeyCode == Keys.Oemcomma)
+            else if (ctrl && keyCode == Keys.Oemcomma)
             {
-                e.SuppressKeyPress = true;
                 OpenSettingsDialog(0);
             }
-            else if (e.Control && e.KeyCode == Keys.R || e.KeyCode == Keys.F5)
+            else if (ctrl && keyCode == Keys.R || keyCode == Keys.F5)
             {
-                e.SuppressKeyPress = true;
                 ReloadCurrentTab();
             }
-            else if (e.Control && e.KeyCode == Keys.H)
+            else if (ctrl && keyCode == Keys.H)
             {
-                e.SuppressKeyPress = true;
                 NavigateCurrentTab("black://history");
             }
-            else if (e.Control && e.KeyCode == Keys.J)
+            else if (ctrl && keyCode == Keys.J)
             {
-                e.SuppressKeyPress = true;
                 NavigateCurrentTab("black://downloads");
             }
             // === Alt combos ===
-            else if (e.Alt && e.KeyCode == Keys.D)
+            else if (alt && keyCode == Keys.D)
             {
-                e.SuppressKeyPress = true;
                 urlBar.Focus();
                 urlBar.SelectAll();
             }
-            else if (e.Alt && e.KeyCode == Keys.Home)
+            else if (alt && keyCode == Keys.Home)
             {
-                // Go to homepage
-                e.SuppressKeyPress = true;
-                NavigateCurrentTab("black://home");
+                NavigateCurrentTab(string.IsNullOrWhiteSpace(SettingsStore.HomePage) ? "black://home" : SettingsStore.HomePage);
             }
-            else if (e.Alt && e.KeyCode == Keys.Left)
+            else if (alt && keyCode == Keys.Left)
             {
-                e.SuppressKeyPress = true;
                 WebView2 wv = GetCurrentWebView();
                 if (wv != null && wv.CanGoBack) wv.GoBack();
             }
-            else if (e.Alt && e.KeyCode == Keys.Right)
+            else if (alt && keyCode == Keys.Right)
             {
-                e.SuppressKeyPress = true;
                 WebView2 wv = GetCurrentWebView();
                 if (wv != null && wv.CanGoForward) wv.GoForward();
             }
             // === Function keys ===
-            else if (e.KeyCode == Keys.F6)
+            else if (keyCode == Keys.F6)
             {
-                e.SuppressKeyPress = true;
                 urlBar.Focus();
                 urlBar.SelectAll();
             }
-            else if (e.KeyCode == Keys.F12)
+            else if (keyCode == Keys.F12)
             {
-                e.SuppressKeyPress = true;
+                if (!SettingsStore.AllowDeveloperTools)
+                {
+                    ShowSoftCommunication("🔒 Developer tools are disabled in this build.");
+                    return;
+                }
                 WebView2 wv = GetCurrentWebView();
                 if (wv != null && wv.CoreWebView2 != null)
                 {
                     try { wv.CoreWebView2.OpenDevToolsWindow(); } catch { }
                 }
             }
-            else if (e.KeyCode == Keys.F11)
+            else if (keyCode == Keys.F11)
             {
-                e.SuppressKeyPress = true;
                 ToggleFullscreen();
             }
             // === Escape ===
-            else if (e.KeyCode == Keys.Escape)
+            else if (keyCode == Keys.Escape)
             {
-                e.SuppressKeyPress = true;
                 if (isFullscreen)
                 {
                     ToggleFullscreen();
@@ -4339,7 +4446,10 @@ namespace BlackBrowser
                         TabPage tp = tabControl.TabPages[i];
                         string tabTitle = tp.Text;
                         WebView2 wv = GetWebView(tp);
-                        string tabUrl = (wv != null && wv.Source != null) ? wv.Source.ToString() : "";
+                        string rawUrl = (wv != null && wv.Source != null) ? wv.Source.ToString() : "";
+                        string tabUrl = InternalUrlRouter.IsInternalOrigin(rawUrl)
+                            ? (string.IsNullOrEmpty(InternalUrlRouter.GetDisplayUrl(rawUrl)) ? "black://home" : InternalUrlRouter.GetDisplayUrl(rawUrl))
+                            : rawUrl;
                         string display = (i + 1) + ". " + tabTitle + " — " + tabUrl;
 
                         if (string.IsNullOrWhiteSpace(query) ||
@@ -4684,17 +4794,16 @@ namespace BlackBrowser
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
-            // Save window state before hiding
-            SettingsStore.WindowState = this.WindowState;
-            SettingsStore.WindowLeft = this.Left;
-            SettingsStore.WindowTop = this.Top;
-            SettingsStore.WindowWidth = this.Width;
-            SettingsStore.WindowHeight = this.Height;
+            // Save window state & open tab session before hiding/closing
+            Rectangle bounds = (this.WindowState == FormWindowState.Normal) ? this.Bounds : this.RestoreBounds;
+            SettingsStore.SaveWindowBounds(this.WindowState, bounds.Left, bounds.Top, bounds.Width, bounds.Height);
+            SaveCurrentSession();
 
             if (e.CloseReason == CloseReason.UserClosing)
             {
                 e.Cancel = true;
                 this.Hide();
+                if (eyeCareOverlay != null) eyeCareOverlay.SyncToOwner(this);
                 SuspendAllWebViews();
                 MemoryTrimmer.TrimProcessMemory();
             }
@@ -4712,13 +4821,18 @@ namespace BlackBrowser
                 if (mainMenu        != null) mainMenu.Dispose();
                 if (tabContextMenu  != null) tabContextMenu.Dispose();
                 if (trayIcon        != null) { trayIcon.Visible = false; trayIcon.Dispose(); }
+                if (appToolTip      != null) { appToolTip.Dispose(); appToolTip = null; }
                 if (gcTimer         != null) gcTimer.Dispose();
-                if (ramTimer        != null) ramTimer.Dispose();
                 if (bannerTimer     != null) bannerTimer.Dispose();
                 if (fullscreenNoticeTimer != null) fullscreenNoticeTimer.Dispose();
                 if (acDebounceTimer != null) acDebounceTimer.Dispose();
                 if (shelfHideTimer != null) shelfHideTimer.Dispose();
                 if (dismissIcon    != null) { dismissIcon.Dispose(); dismissIcon = null; }
+                foreach (var kv in iconCache)
+                {
+                    try { if (kv.Value != null) kv.Value.Dispose(); } catch { }
+                }
+                iconCache.Clear();
                 if (webViewEnv      != null) { try { ((System.IDisposable)webViewEnv).Dispose(); } catch { } }
                 webViewEnv = null;
             }

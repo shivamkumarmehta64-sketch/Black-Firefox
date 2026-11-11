@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
 using System.Windows.Forms;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using Microsoft.Web.WebView2.Core;
 
 namespace BlackBrowser
 {
@@ -21,10 +23,21 @@ namespace BlackBrowser
         private Action<int> _onThemeChanged;
         private Action<int> _onEyeCareChanged;
         private Action<string> _onNavigate;
+        private Action _onPreferencesChanged;
         private string _notesPath;
         private ComboBox _themeCombo;
         private ComboBox _eyeCareCombo;
         private TextBox _notesTextBox;
+        private bool _notesPlaceholderActive = false;
+        private bool _loadingNotes = false;
+        private readonly List<Font> _ownedFonts = new List<Font>();
+
+        private Font TrackFont(string family, float size, FontStyle style = FontStyle.Regular)
+        {
+            Font f = new Font(family, size, style);
+            _ownedFonts.Add(f);
+            return f;
+        }
 
         [DllImport("dwmapi.dll")]
         private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
@@ -42,11 +55,12 @@ namespace BlackBrowser
             catch { }
         }
 
-        public SettingsForm(int currentTheme, int currentEyeCare, Action<int> themeCallback, Action<int> eyeCareCallback, int initialTab = 0, Action<string> navCallback = null)
+        public SettingsForm(int currentTheme, int currentEyeCare, Action<int> themeCallback, Action<int> eyeCareCallback, int initialTab = 0, Action<string> navCallback = null, Action preferencesChangedCallback = null)
         {
             _onThemeChanged = themeCallback;
             _onEyeCareChanged = eyeCareCallback;
             _onNavigate = navCallback;
+            _onPreferencesChanged = preferencesChangedCallback;
             _notesPath = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "black-webview2", "dark_notes.txt");
@@ -58,10 +72,15 @@ namespace BlackBrowser
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.BackColor = _bgForm;
             this.ForeColor = _textPrimary;
-            this.ClientSize = new Size(640, 400);
+            this.ClientSize = new Size(660, 460);
             this.MinimumSize = this.Size;
 
             InitializeComponents(currentTheme, currentEyeCare, initialTab);
+        }
+
+        private void NotifyPreferencesChanged()
+        {
+            if (_onPreferencesChanged != null) _onPreferencesChanged();
         }
 
         private void InitializeComponents(int currentTheme, int currentEyeCare, int initialTab)
@@ -70,27 +89,27 @@ namespace BlackBrowser
 
             var tabControl = new TabControl();
             tabControl.Dock = DockStyle.Fill;
-            tabControl.Font = new Font("Segoe UI", 9.5f);
+            tabControl.Font = TrackFont("Segoe UI", 9.5f);
             tabControl.Appearance = TabAppearance.Buttons;
-            tabControl.ItemSize = new Size(102, 26);
+            tabControl.ItemSize = new Size(106, 28);
 
             // ─── General & Theme Page ──────────────────────────────────────────────
-            var generalPage = new TabPage("⚙️  General & Theme");
+            var generalPage = new TabPage("⚙️ General");
             generalPage.BackColor = _cardBg;
             generalPage.Padding = new Padding(20);
 
             var themeLbl = new Label();
             themeLbl.Text = "Browser Theme / Visual Style:";
-            themeLbl.Location = new Point(0, 0);
+            themeLbl.Location = new Point(20, 16);
             themeLbl.AutoSize = true;
-            themeLbl.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
+            themeLbl.Font = TrackFont("Segoe UI", 10f, FontStyle.Bold);
             themeLbl.ForeColor = _textPrimary;
 
             _themeCombo = new ComboBox();
-            _themeCombo.Location = new Point(0, 30);
-            _themeCombo.Width = 360;
+            _themeCombo.Location = new Point(20, 42);
+            _themeCombo.Width = 340;
             _themeCombo.DropDownStyle = ComboBoxStyle.DropDownList;
-            _themeCombo.Font = new Font("Segoe UI", 10f);
+            _themeCombo.Font = TrackFont("Segoe UI", 10f);
             _themeCombo.FlatStyle = FlatStyle.Flat;
             _themeCombo.BackColor = _cardBg;
             _themeCombo.ForeColor = _textPrimary;
@@ -105,8 +124,162 @@ namespace BlackBrowser
                 if (_onThemeChanged != null) _onThemeChanged(_themeCombo.SelectedIndex);
             };
 
+            var searchLbl = new Label();
+            searchLbl.Text = "Default Search Engine:";
+            searchLbl.Location = new Point(20, 94);
+            searchLbl.AutoSize = true;
+            searchLbl.Font = TrackFont("Segoe UI", 9.5f, FontStyle.Bold);
+            searchLbl.ForeColor = _textPrimary;
+
+            var searchCombo = new ComboBox();
+            searchCombo.Location = new Point(20, 118);
+            searchCombo.Width = 220;
+            searchCombo.DropDownStyle = ComboBoxStyle.DropDownList;
+            searchCombo.Font = TrackFont("Segoe UI", 9.5f);
+            string[] engines = new string[] { "google", "duckduckgo", "bing", "brave", "startpage", "ecosia", "youtube" };
+            string[] engineLabels = new string[] { "Google", "DuckDuckGo", "Bing", "Brave Search", "Startpage", "Ecosia", "YouTube" };
+            for (int i = 0; i < engineLabels.Length; i++) searchCombo.Items.Add(engineLabels[i]);
+            int engIdx = Array.IndexOf(engines, (SettingsStore.SearchEngine ?? "google").ToLowerInvariant());
+            searchCombo.SelectedIndex = engIdx >= 0 ? engIdx : 0;
+            searchCombo.SelectedIndexChanged += (s, e) =>
+            {
+                if (searchCombo.SelectedIndex >= 0 && searchCombo.SelectedIndex < engines.Length)
+                {
+                    SettingsStore.SearchEngine = engines[searchCombo.SelectedIndex];
+                    NotifyPreferencesChanged();
+                }
+            };
+
+            var zoomLbl = new Label();
+            zoomLbl.Text = "Default Zoom:";
+            zoomLbl.Location = new Point(260, 94);
+            zoomLbl.AutoSize = true;
+            zoomLbl.Font = TrackFont("Segoe UI", 9.5f, FontStyle.Bold);
+            zoomLbl.ForeColor = _textPrimary;
+
+            var zoomCombo = new ComboBox();
+            zoomCombo.Location = new Point(260, 118);
+            zoomCombo.Width = 100;
+            zoomCombo.DropDownStyle = ComboBoxStyle.DropDownList;
+            zoomCombo.Font = TrackFont("Segoe UI", 9.5f);
+            double[] zoomVals = new double[] { 0.8, 0.9, 1.0, 1.1, 1.25, 1.5 };
+            string[] zoomLabels = new string[] { "80%", "90%", "100%", "110%", "125%", "150%" };
+            for (int i = 0; i < zoomLabels.Length; i++) zoomCombo.Items.Add(zoomLabels[i]);
+            int bestZoomIdx = 2;
+            for (int i = 0; i < zoomVals.Length; i++)
+            {
+                if (Math.Abs(SettingsStore.DefaultZoom - zoomVals[i]) < 0.05) { bestZoomIdx = i; break; }
+            }
+            zoomCombo.SelectedIndex = bestZoomIdx;
+            zoomCombo.SelectedIndexChanged += (s, e) =>
+            {
+                if (zoomCombo.SelectedIndex >= 0 && zoomCombo.SelectedIndex < zoomVals.Length)
+                {
+                    SettingsStore.DefaultZoom = zoomVals[zoomCombo.SelectedIndex];
+                    NotifyPreferencesChanged();
+                }
+            };
+
+            var homeLbl = new Label();
+            homeLbl.Text = "Home Page URL:";
+            homeLbl.Location = new Point(20, 160);
+            homeLbl.AutoSize = true;
+            homeLbl.Font = TrackFont("Segoe UI", 9.5f, FontStyle.Bold);
+            homeLbl.ForeColor = _textPrimary;
+
+            var homeBox = new TextBox();
+            homeBox.Location = new Point(20, 184);
+            homeBox.Width = 340;
+            homeBox.Font = TrackFont("Segoe UI", 9.5f);
+            homeBox.BackColor = Color.FromArgb(20, 24, 32);
+            homeBox.ForeColor = _textPrimary;
+            homeBox.BorderStyle = BorderStyle.FixedSingle;
+            homeBox.Text = string.IsNullOrEmpty(SettingsStore.HomePage) ? "black://home" : SettingsStore.HomePage;
+            homeBox.Leave += (s, e) =>
+            {
+                string hp = (homeBox.Text ?? "").Trim();
+                SettingsStore.HomePage = string.IsNullOrEmpty(hp) ? "black://home" : hp;
+                NotifyPreferencesChanged();
+            };
+
+            var chkHomeBtn = new CheckBox();
+            chkHomeBtn.Text = "Show Home button on toolbar";
+            chkHomeBtn.Location = new Point(20, 224);
+            chkHomeBtn.AutoSize = true;
+            chkHomeBtn.Font = TrackFont("Segoe UI", 9.5f);
+            chkHomeBtn.ForeColor = _textPrimary;
+            chkHomeBtn.Checked = SettingsStore.ShowHomeButton;
+            chkHomeBtn.CheckedChanged += (s, e) =>
+            {
+                SettingsStore.ShowHomeButton = chkHomeBtn.Checked;
+                NotifyPreferencesChanged();
+            };
+
+            var chkHttps = new CheckBox();
+            chkHttps.Text = "HTTPS-First Mode (auto-upgrade plain HTTP links)";
+            chkHttps.Location = new Point(20, 254);
+            chkHttps.AutoSize = true;
+            chkHttps.Font = TrackFont("Segoe UI", 9.5f);
+            chkHttps.ForeColor = _textPrimary;
+            chkHttps.Checked = SettingsStore.HttpsFirstMode;
+            chkHttps.CheckedChanged += (s, e) =>
+            {
+                SettingsStore.HttpsFirstMode = chkHttps.Checked;
+                NotifyPreferencesChanged();
+            };
+
+            var chkAnimations = new CheckBox();
+            chkAnimations.Text = "Enable glassmorphic UI animations";
+            chkAnimations.Location = new Point(20, 284);
+            chkAnimations.AutoSize = true;
+            chkAnimations.Font = TrackFont("Segoe UI", 9.5f);
+            chkAnimations.ForeColor = _textPrimary;
+            chkAnimations.Checked = SettingsStore.AnimationsEnabled;
+            chkAnimations.CheckedChanged += (s, e) =>
+            {
+                SettingsStore.AnimationsEnabled = chkAnimations.Checked;
+                NotifyPreferencesChanged();
+            };
+
+            var chkForceDark = new CheckBox();
+            chkForceDark.Text = "Prefer dark color scheme for websites";
+            chkForceDark.Location = new Point(20, 314);
+            chkForceDark.AutoSize = true;
+            chkForceDark.Font = TrackFont("Segoe UI", 9.5f);
+            chkForceDark.ForeColor = _textPrimary;
+            chkForceDark.Checked = SettingsStore.ForceDarkMode;
+            chkForceDark.CheckedChanged += (s, e) =>
+            {
+                SettingsStore.ForceDarkMode = chkForceDark.Checked;
+                NotifyPreferencesChanged();
+            };
+
+            var chkRestore = new CheckBox();
+            chkRestore.Text = "Restore previous open tabs on startup";
+            chkRestore.Location = new Point(20, 344);
+            chkRestore.AutoSize = true;
+            chkRestore.Font = TrackFont("Segoe UI", 9.5f);
+            chkRestore.ForeColor = _textPrimary;
+            chkRestore.Checked = SettingsStore.RestoreSession;
+            chkRestore.CheckedChanged += (s, e) =>
+            {
+                SettingsStore.RestoreSession = chkRestore.Checked;
+                NotifyPreferencesChanged();
+            };
+
             generalPage.Controls.Add(themeLbl);
             generalPage.Controls.Add(_themeCombo);
+            generalPage.Controls.Add(searchLbl);
+            generalPage.Controls.Add(searchCombo);
+            generalPage.Controls.Add(zoomLbl);
+            generalPage.Controls.Add(zoomCombo);
+            generalPage.Controls.Add(homeLbl);
+            generalPage.Controls.Add(homeBox);
+            generalPage.Controls.Add(chkHomeBtn);
+            generalPage.Controls.Add(chkHttps);
+            generalPage.Controls.Add(chkAnimations);
+            generalPage.Controls.Add(chkForceDark);
+            generalPage.Controls.Add(chkRestore);
 
             // ─── Eye Care Page ─────────────────────────────────────────────────────
             var eyeCarePage = new TabPage("👁️  Eye Care & Screen");
@@ -144,7 +317,7 @@ namespace BlackBrowser
             eyeCarePage.Controls.Add(_eyeCareCombo);
 
             // ─── Dark Notes Page ───────────────────────────────────────────────────
-            var notesPage = new TabPage("📝  Dark Notes");
+            var notesPage = new TabPage("📝 Dark Notes");
             notesPage.BackColor = _cardBg;
             notesPage.Padding = new Padding(12);
 
@@ -152,7 +325,7 @@ namespace BlackBrowser
             notesHeader.Text = "📝  Quick Dark Notes (Auto-Saved Locally)";
             notesHeader.Dock = DockStyle.Top;
             notesHeader.Height = 32;
-            notesHeader.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
+            notesHeader.Font = TrackFont("Segoe UI", 10f, FontStyle.Bold);
             notesHeader.ForeColor = _textPrimary;
 
             _notesTextBox = new TextBox();
@@ -161,30 +334,62 @@ namespace BlackBrowser
             _notesTextBox.ScrollBars = ScrollBars.Vertical;
             _notesTextBox.BackColor = Color.FromArgb(18, 22, 30);
             _notesTextBox.ForeColor = _textSecondary;
-            _notesTextBox.Font = new Font("Segoe UI", 10f);
+            _notesTextBox.Font = TrackFont("Segoe UI", 10f);
             _notesTextBox.BorderStyle = BorderStyle.None;
-            _notesTextBox.Text = "Quick note...";
-            _notesTextBox.TextChanged += (s, e) => SaveNotes();
+
+            string existingNotes = "";
+            try
+            {
+                if (File.Exists(_notesPath))
+                    existingNotes = File.ReadAllText(_notesPath, System.Text.Encoding.UTF8);
+            }
+            catch { }
+
+            _loadingNotes = true;
+            if (!string.IsNullOrEmpty(existingNotes))
+            {
+                _notesPlaceholderActive = false;
+                _notesTextBox.ForeColor = _textPrimary;
+                _notesTextBox.Text = existingNotes;
+            }
+            else
+            {
+                _notesPlaceholderActive = true;
+                _notesTextBox.ForeColor = _textSecondary;
+                _notesTextBox.Text = "Quick note...";
+            }
+            _loadingNotes = false;
+
+            _notesTextBox.TextChanged += (s, e) =>
+            {
+                if (!_loadingNotes && !_notesPlaceholderActive) SaveNotes();
+            };
 
             _notesTextBox.Enter += (s, e) =>
             {
-                if (_notesTextBox.Text == "Quick note...")
+                if (_notesPlaceholderActive)
                 {
+                    _loadingNotes = true;
+                    _notesPlaceholderActive = false;
                     _notesTextBox.Text = "";
                     _notesTextBox.ForeColor = _textPrimary;
+                    _loadingNotes = false;
                 }
             };
             _notesTextBox.Leave += (s, e) =>
             {
                 if (string.IsNullOrWhiteSpace(_notesTextBox.Text))
                 {
+                    _loadingNotes = true;
+                    _notesPlaceholderActive = true;
                     _notesTextBox.Text = "Quick note...";
                     _notesTextBox.ForeColor = _textSecondary;
+                    _loadingNotes = false;
                 }
             };
 
-            notesPage.Controls.Add(notesHeader);
             notesPage.Controls.Add(_notesTextBox);
+            notesPage.Controls.Add(notesHeader);
 
             // ─── Device Info Page ──────────────────────────────────────────────────
             var devicePage = new TabPage("💻  Device & Hardware");
@@ -365,6 +570,7 @@ namespace BlackBrowser
                 else if (accentCombo.SelectedIndex == 3) SettingsStore.Accent = "#f59e0b";
                 else if (accentCombo.SelectedIndex == 4) SettingsStore.Accent = "#8b5cf6";
                 else SettingsStore.Accent = "#0C63E8";
+                NotifyPreferencesChanged();
             };
 
             var roundLabel = new Label();
@@ -396,6 +602,7 @@ namespace BlackBrowser
                 else if (roundCombo.SelectedIndex == 1) SettingsStore.CornerRadius = 8;
                 else if (roundCombo.SelectedIndex == 3) SettingsStore.CornerRadius = 20;
                 else SettingsStore.CornerRadius = 12;
+                NotifyPreferencesChanged();
             };
 
             customPage.Controls.Add(customTitle);
@@ -468,17 +675,25 @@ namespace BlackBrowser
             {
                 var proc = Process.GetCurrentProcess();
                 var ramMB = Math.Round(proc.WorkingSet64 / (1024.0 * 1024.0), 2);
+                string wvVer = "Microsoft WebView2";
+                try
+                {
+                    string v = CoreWebView2Environment.GetAvailableBrowserVersionString();
+                    if (!string.IsNullOrEmpty(v)) wvVer = "Microsoft WebView2 (" + v + ")";
+                }
+                catch { }
+
                 return
                     "BLACK FIREFOX DEVICE DIAGNOSTICS\n\n" +
-                    "OS:      " + Environment.OSVersion + "\n" +
-                    "Arch:    " + (Environment.Is64BitOperatingSystem ? "x64" : "x86") + "\n" +
-                    "CPU:     " + Environment.ProcessorCount + " cores\n" +
-                    "Machine: " + Environment.MachineName + "\n" +
-                    "User:    " + Environment.UserName + "\n\n" +
-                    "PID:     " + proc.Id + "\n" +
-                    "RAM:     " + ramMB + " MB\n" +
-                    "Engine:  Microsoft WebView2 (Chromium 128)\n" +
-                    "Theme:   Anime Cyberpunk Neon Edition\n" +
+                    "OS:       " + Environment.OSVersion + "\n" +
+                    "Arch:     " + (Environment.Is64BitOperatingSystem ? "x64" : "x86") + "\n" +
+                    "CPU:      " + Environment.ProcessorCount + " cores\n" +
+                    "Machine:  " + Environment.MachineName + "\n" +
+                    "User:     " + Environment.UserName + "\n\n" +
+                    "PID:      " + proc.Id + "\n" +
+                    "RAM:      " + ramMB + " MB\n" +
+                    "Engine:   " + wvVer + "\n" +
+                    "Theme:    Anime Cyberpunk Neon Edition\n" +
                     "AdShield: 3-Layer Active";
             }
             catch
@@ -489,11 +704,12 @@ namespace BlackBrowser
 
         private void SaveNotes()
         {
+            if (_notesPlaceholderActive) return;
             try
             {
                 var dir = Path.GetDirectoryName(_notesPath);
                 if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
-                File.WriteAllText(_notesPath, _notesTextBox.Text);
+                File.WriteAllText(_notesPath, _notesTextBox.Text, System.Text.Encoding.UTF8);
             }
             catch { }
         }
@@ -502,6 +718,19 @@ namespace BlackBrowser
         {
             base.OnFormClosing(e);
             SaveNotes();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                foreach (Font f in _ownedFonts)
+                {
+                    try { if (f != null) f.Dispose(); } catch { }
+                }
+                _ownedFonts.Clear();
+            }
+            base.Dispose(disposing);
         }
     }
 }

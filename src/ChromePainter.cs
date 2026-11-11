@@ -37,15 +37,17 @@ namespace BlackBrowser
         // tinted with the accent, light mode = white tinted with the accent).
         public static LinearGradientBrush BaseBrush(Rectangle r)
         {
+            if (r.Width <= 0) r.Width = 1;
+            if (r.Height <= 0) r.Height = 1;
             Color top, bottom;
             if (IsDark)
             {
-                top = Mix(Color.FromArgb(24, 24, 30), Mix(Color.FromArgb(24, 24, 30), Accent, 0.18f), 0f);
-                bottom = Mix(Color.FromArgb(17, 17, 21), Mix(Color.FromArgb(17, 17, 21), Accent, 0.12f), 0.6f);
+                top = Mix(Color.FromArgb(24, 24, 30), Accent, 0.14f);
+                bottom = Mix(Color.FromArgb(17, 17, 21), Accent, 0.07f);
             }
             else
             {
-                top = Mix(Color.FromArgb(247, 247, 248), Mix(Color.White, Accent, 0.06f), 0.4f);
+                top = Mix(Color.FromArgb(247, 247, 248), Accent, 0.04f);
                 bottom = Color.FromArgb(237, 238, 240);
             }
             return new LinearGradientBrush(r, top, bottom, LinearGradientMode.Vertical);
@@ -55,6 +57,8 @@ namespace BlackBrowser
         // absolute across the whole form width so adjacent surfaces line up.
         public static void PaintBackground(Graphics g, Rectangle r, int formWidth)
         {
+            if (r.Width <= 0 || r.Height <= 0) return;
+
             using (LinearGradientBrush baseBrush = BaseBrush(r))
             {
                 g.FillRectangle(baseBrush, r);
@@ -91,12 +95,15 @@ namespace BlackBrowser
                     pg.CenterColor = color;
                     pg.SurroundColors = new Color[] { Color.Transparent };
                     pg.CenterPoint = new PointF(cx, cy);
-                    using (Region reg = new Region(clip))
+                    GraphicsState state = g.Save();
+                    try
                     {
-                        Region old = g.Clip;
-                        g.SetClip(reg, CombineMode.Replace);
+                        g.SetClip(clip);
                         g.FillPath(pg, path);
-                        g.Clip = old;
+                    }
+                    finally
+                    {
+                        g.Restore(state);
                     }
                 }
             }
