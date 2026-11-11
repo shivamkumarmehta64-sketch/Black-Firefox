@@ -9,6 +9,7 @@ namespace BlackBrowser
 {
     public static class SettingsStore
     {
+        private static readonly object fileLock = new object();
         private static string settingsFilePath;
         private static string searchEngine = "google";
         private static bool forceDarkMode = false;
@@ -29,6 +30,11 @@ namespace BlackBrowser
         private static bool showNotes = true;
         private static bool showTelemetry = true;
         private static bool allowDeveloperTools = false;
+        private static bool restoreSession = true;
+        private static bool adShieldEnabled = true;
+        private static bool stripTrackingParams = true;
+        private static bool strictTrackingPrevention = true;
+        private static int maxActiveTabs = 4;
         private static int cornerRadius = 12;
 
         static SettingsStore()
@@ -41,42 +47,73 @@ namespace BlackBrowser
 
         private static void Load()
         {
-            try
+            lock (fileLock)
             {
-                if (File.Exists(settingsFilePath))
+                try
                 {
-                    var serializer = new JavaScriptSerializer();
-                    var data = serializer.Deserialize<SettingsData>(File.ReadAllText(settingsFilePath));
-                    if (data != null)
+                    if (File.Exists(settingsFilePath))
                     {
-                        if (!string.IsNullOrEmpty(data.SearchEngine))
-                            searchEngine = data.SearchEngine;
-                        forceDarkMode = data.ForceDarkMode;
-                        httpsFirstMode = data.HttpsFirstMode;
-                        if (!string.IsNullOrEmpty(data.Accent))
-                            accent = data.Accent;
-                        animationsEnabled = data.AnimationsEnabled;
-                        showHomeButton = data.ShowHomeButton;
-                        homePage = data.HomePage;
-                        if (data.DefaultZoom > 0) defaultZoom = data.DefaultZoom;
-                        windowState = data.WindowState;
-                        windowLeft = data.WindowLeft;
-                        windowTop = data.WindowTop;
-                        windowWidth = data.WindowWidth > 0 ? data.WindowWidth : 1280;
-                        windowHeight = data.WindowHeight > 0 ? data.WindowHeight : 820;
+                        string raw = File.ReadAllText(settingsFilePath, Encoding.UTF8);
+                        string json = UnprotectString(raw);
+                        if (string.IsNullOrEmpty(json))
+                        {
+                            // Fallback for plain JSON files (e.g. legacy or unencrypted)
+                            json = raw;
+                        }
+                        var serializer = new JavaScriptSerializer();
+                        var data = serializer.Deserialize<SettingsData>(json);
+                        if (data != null)
+                        {
+                            if (!string.IsNullOrEmpty(data.SearchEngine))
+                                searchEngine = data.SearchEngine;
+                            forceDarkMode = data.ForceDarkMode;
+                            httpsFirstMode = data.HttpsFirstMode;
+                            if (!string.IsNullOrEmpty(data.Accent))
+                                accent = data.Accent;
+                            animationsEnabled = data.AnimationsEnabled;
+                            showHomeButton = data.ShowHomeButton;
+                            if (!string.IsNullOrEmpty(data.HomePage))
+                                homePage = data.HomePage;
+                            if (data.DefaultZoom >= 0.25 && data.DefaultZoom <= 5.0)
+                                defaultZoom = data.DefaultZoom;
+                            windowState = data.WindowState;
+                            windowLeft = data.WindowLeft;
+                            windowTop = data.WindowTop;
+                            windowWidth = data.WindowWidth > 0 ? data.WindowWidth : 1280;
+                            windowHeight = data.WindowHeight > 0 ? data.WindowHeight : 820;
 
-                        if (!string.IsNullOrEmpty(data.SpeedDialBg))
-                            speedDialBg = data.SpeedDialBg;
-                        showClock = data.ShowClock;
-                        showNotes = data.ShowNotes;
-                        showTelemetry = data.ShowTelemetry;
-                        allowDeveloperTools = data.AllowDeveloperTools;
-                        if (data.CornerRadius > 0)
-                            cornerRadius = data.CornerRadius;
+                            if (!string.IsNullOrEmpty(data.SpeedDialBg))
+                                speedDialBg = data.SpeedDialBg;
+                            showClock = data.ShowClock;
+                            showNotes = data.ShowNotes;
+                            showTelemetry = data.ShowTelemetry;
+                            allowDeveloperTools = data.AllowDeveloperTools;
+                            restoreSession = data.RestoreSession;
+                            adShieldEnabled = data.AdShieldEnabled;
+                            stripTrackingParams = data.StripTrackingParams;
+                            strictTrackingPrevention = data.StrictTrackingPrevention;
+                            if (data.MaxActiveTabs >= 2 && data.MaxActiveTabs <= 16)
+                                maxActiveTabs = data.MaxActiveTabs;
+                            if (data.CornerRadius >= 0)
+                                cornerRadius = data.CornerRadius;
+                        }
                     }
                 }
+                catch { }
             }
-            catch { }
+        }
+
+        public static void SaveWindowBounds(FormWindowState state, int left, int top, int width, int height)
+        {
+            lock (fileLock)
+            {
+                windowState = state;
+                windowLeft = left;
+                windowTop = top;
+                windowWidth = width;
+                windowHeight = height;
+                Save();
+            }
         }
 
         public static FormWindowState WindowState
@@ -191,6 +228,79 @@ namespace BlackBrowser
             set { allowDeveloperTools = value; Save(); }
         }
 
+        public static bool RestoreSession
+        {
+            get { return restoreSession; }
+            set { restoreSession = value; Save(); }
+        }
+
+        public static bool AdShieldEnabled
+        {
+            get { return adShieldEnabled; }
+            set { adShieldEnabled = value; Save(); }
+        }
+
+        public static bool StripTrackingParams
+        {
+            get { return stripTrackingParams; }
+            set { stripTrackingParams = value; Save(); }
+        }
+
+        public static bool StrictTrackingPrevention
+        {
+            get { return strictTrackingPrevention; }
+            set { strictTrackingPrevention = value; Save(); }
+        }
+
+        public static int MaxActiveTabs
+        {
+            get { return maxActiveTabs; }
+            set
+            {
+                int clamped = value < 2 ? 2 : (value > 16 ? 16 : value);
+                maxActiveTabs = clamped;
+                Save();
+            }
+        }
+
+        private static string NotesFilePath
+        {
+            get
+            {
+                return Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "black-webview2", "dark_notes.txt");
+            }
+        }
+
+        public static string GetQuickNotes()
+        {
+            lock (fileLock)
+            {
+                try
+                {
+                    if (File.Exists(NotesFilePath))
+                        return File.ReadAllText(NotesFilePath, Encoding.UTF8) ?? "";
+                }
+                catch { }
+                return "";
+            }
+        }
+
+        public static void SaveQuickNotes(string text)
+        {
+            lock (fileLock)
+            {
+                try
+                {
+                    string dir = Path.GetDirectoryName(NotesFilePath);
+                    if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                    File.WriteAllText(NotesFilePath, text ?? "", Encoding.UTF8);
+                }
+                catch { }
+            }
+        }
+
         public static int CornerRadius
         {
             get { return cornerRadius; }
@@ -241,36 +351,44 @@ namespace BlackBrowser
 
         private static void Save()
         {
-            try
+            lock (fileLock)
             {
-                string dir = Path.GetDirectoryName(settingsFilePath);
-                if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
-                var serializer = new JavaScriptSerializer();
-                string json = serializer.Serialize(new SettingsData
+                try
                 {
-                    SearchEngine = searchEngine,
-                    ForceDarkMode = forceDarkMode,
-                    HttpsFirstMode = httpsFirstMode,
-                    Accent = accent,
-                    AnimationsEnabled = animationsEnabled,
-                    ShowHomeButton = showHomeButton,
-                    HomePage = homePage,
-                    DefaultZoom = defaultZoom,
-                    WindowState = windowState,
-                    WindowLeft = windowLeft,
-                    WindowTop = windowTop,
-                    WindowWidth = windowWidth,
-                    WindowHeight = windowHeight,
-                    SpeedDialBg = speedDialBg,
-                    ShowClock = showClock,
-                    ShowNotes = showNotes,
-                    ShowTelemetry = showTelemetry,
-                    AllowDeveloperTools = allowDeveloperTools,
-                    CornerRadius = cornerRadius
-                });
-                File.WriteAllText(settingsFilePath, ProtectString(json), Encoding.UTF8);
+                    string dir = Path.GetDirectoryName(settingsFilePath);
+                    if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                    var serializer = new JavaScriptSerializer();
+                    string json = serializer.Serialize(new SettingsData
+                    {
+                        SearchEngine = searchEngine,
+                        ForceDarkMode = forceDarkMode,
+                        HttpsFirstMode = httpsFirstMode,
+                        Accent = accent,
+                        AnimationsEnabled = animationsEnabled,
+                        ShowHomeButton = showHomeButton,
+                        HomePage = homePage,
+                        DefaultZoom = defaultZoom,
+                        WindowState = windowState,
+                        WindowLeft = windowLeft,
+                        WindowTop = windowTop,
+                        WindowWidth = windowWidth,
+                        WindowHeight = windowHeight,
+                        SpeedDialBg = speedDialBg,
+                        ShowClock = showClock,
+                        ShowNotes = showNotes,
+                        ShowTelemetry = showTelemetry,
+                        AllowDeveloperTools = allowDeveloperTools,
+                        RestoreSession = restoreSession,
+                        AdShieldEnabled = adShieldEnabled,
+                        StripTrackingParams = stripTrackingParams,
+                        StrictTrackingPrevention = strictTrackingPrevention,
+                        MaxActiveTabs = maxActiveTabs,
+                        CornerRadius = cornerRadius
+                    });
+                    File.WriteAllText(settingsFilePath, ProtectString(json), Encoding.UTF8);
+                }
+                catch { }
             }
-            catch { }
         }
 
         private class SettingsData
@@ -293,7 +411,26 @@ namespace BlackBrowser
             public bool ShowNotes { get; set; }
             public bool ShowTelemetry { get; set; }
             public bool AllowDeveloperTools { get; set; }
+            public bool RestoreSession { get; set; }
+            public bool AdShieldEnabled { get; set; }
+            public bool StripTrackingParams { get; set; }
+            public bool StrictTrackingPrevention { get; set; }
+            public int MaxActiveTabs { get; set; }
             public int CornerRadius { get; set; }
+
+            public SettingsData()
+            {
+                AnimationsEnabled = true;
+                ShowHomeButton = true;
+                ShowClock = true;
+                ShowNotes = true;
+                ShowTelemetry = true;
+                RestoreSession = true;
+                AdShieldEnabled = true;
+                StripTrackingParams = true;
+                StrictTrackingPrevention = true;
+                MaxActiveTabs = 4;
+            }
         }
     }
 }

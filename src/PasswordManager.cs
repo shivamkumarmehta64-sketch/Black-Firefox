@@ -53,15 +53,15 @@ namespace BlackBrowser
         {
             lock (fileLock)
             {
-                if (_cache != null) return _cache;
+                if (_cache != null) return new List<PasswordItem>(_cache);
                 _cache = new List<PasswordItem>();
                 try
                 {
                     string path = GetPath();
-                    if (!File.Exists(path)) return _cache;
+                    if (!File.Exists(path)) return new List<PasswordItem>(_cache);
                     string json = File.ReadAllText(path, Encoding.UTF8);
                     var parsed = new JavaScriptSerializer().Deserialize<List<Dictionary<string, object>>>(json);
-                    if (parsed == null) return _cache;
+                    if (parsed == null) return new List<PasswordItem>(_cache);
                     foreach (var d in parsed)
                     {
                         PasswordItem it = new PasswordItem();
@@ -73,54 +73,88 @@ namespace BlackBrowser
                     }
                 }
                 catch { }
-                return _cache;
+                return new List<PasswordItem>(_cache);
             }
         }
 
-        private static void SaveAll(List<PasswordItem> items)
+        private static void SaveAllLocked(List<PasswordItem> items)
         {
-            lock (fileLock)
+            try
             {
-                try
+                List<Dictionary<string, object>> list = new List<Dictionary<string, object>>();
+                foreach (PasswordItem it in items)
                 {
-                    List<Dictionary<string, object>> list = new List<Dictionary<string, object>>();
-                    foreach (PasswordItem it in items)
-                    {
-                        Dictionary<string, object> d = new Dictionary<string, object>();
-                        d["Site"] = it.Site;
-                        d["Username"] = Protect(it.Username);
-                        d["Password"] = Protect(it.Password);
-                        d["DateAdded"] = it.DateAdded;
-                        list.Add(d);
-                    }
-                    string json = new JavaScriptSerializer().Serialize(list);
-                    File.WriteAllText(GetPath(), json, Encoding.UTF8);
+                    Dictionary<string, object> d = new Dictionary<string, object>();
+                    d["Site"] = it.Site;
+                    d["Username"] = Protect(it.Username ?? "");
+                    d["Password"] = Protect(it.Password ?? "");
+                    d["DateAdded"] = it.DateAdded;
+                    list.Add(d);
                 }
-                catch { }
+                string json = new JavaScriptSerializer().Serialize(list);
+                File.WriteAllText(GetPath(), json, Encoding.UTF8);
             }
+            catch { }
         }
 
         public static void SavePassword(string site, string username, string password)
         {
-            List<PasswordItem> items = GetPasswords();
-            items.RemoveAll(x => x.Site != null && x.Site.Equals(site, StringComparison.OrdinalIgnoreCase));
-            PasswordItem it = new PasswordItem();
-            it.Site = site;
-            it.Username = username;
-            it.Password = password;
-            it.DateAdded = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
-            items.Insert(0, it);
-            SaveAll(items);
+            if (string.IsNullOrEmpty(site) || string.IsNullOrEmpty(password)) return;
+            string safeUser = username ?? "";
+            lock (fileLock)
+            {
+                GetPasswords();
+                _cache.RemoveAll(x =>
+                    x.Site != null && x.Site.Equals(site, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(x.Username ?? "", safeUser, StringComparison.OrdinalIgnoreCase));
+                PasswordItem it = new PasswordItem();
+                it.Site = site;
+                it.Username = safeUser;
+                it.Password = password;
+                it.DateAdded = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
+                _cache.Insert(0, it);
+                SaveAllLocked(_cache);
+            }
         }
 
-        public static void RemovePassword(string site)
+        public static List<PasswordItem> GetCredentialsForHost(string host)
+        {
+            List<PasswordItem> matches = new List<PasswordItem>();
+            if (string.IsNullOrEmpty(host)) return matches;
+            List<PasswordItem> all = GetPasswords();
+            foreach (PasswordItem p in all)
+            {
+                if (!string.IsNullOrEmpty(p.Site) && p.Site.Equals(host, StringComparison.OrdinalIgnoreCase))
+                {
+                    matches.Add(new PasswordItem
+                    {
+                        Site = p.Site,
+                        Username = p.Username,
+                        Password = p.Password,
+                        DateAdded = p.DateAdded
+                    });
+                }
+            }
+            return matches;
+        }
+
+        public static void RemovePassword(string site, string username = null)
         {
             if (string.IsNullOrEmpty(site)) return;
             lock (fileLock)
             {
-                var items = GetPasswords();
-                items.RemoveAll(x => x.Site != null && x.Site.Equals(site, StringComparison.OrdinalIgnoreCase));
-                SaveAll(items);
+                GetPasswords();
+                if (username == null)
+                {
+                    _cache.RemoveAll(x => x.Site != null && x.Site.Equals(site, StringComparison.OrdinalIgnoreCase));
+                }
+                else
+                {
+                    _cache.RemoveAll(x =>
+                        x.Site != null && x.Site.Equals(site, StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(x.Username ?? "", username, StringComparison.OrdinalIgnoreCase));
+                }
+                SaveAllLocked(_cache);
             }
         }
 
@@ -141,16 +175,16 @@ namespace BlackBrowser
             }
             else
             {
-                foreach (PasswordItem p in items)
+                for (int idx = 0; idx < items.Count; idx++)
                 {
+                    PasswordItem p = items[idx];
                     string safeSite = System.Web.HttpUtility.HtmlEncode(p.Site ?? "");
                     string safeUser = System.Web.HttpUtility.HtmlEncode(p.Username ?? "");
                     string safePass = System.Web.HttpUtility.HtmlEncode(p.Password ?? "");
                     string safeDate = System.Web.HttpUtility.HtmlEncode(p.DateAdded ?? "");
-                    string siteParam = Uri.EscapeDataString(p.Site ?? "");
 
                     cards.Append(@"
-<div class='item' data-site='" + safeSite.ToLowerInvariant() + @"' data-user='" + safeUser.ToLowerInvariant() + @"'>
+<div class='item' data-site='" + safeSite.ToLowerInvariant() + @"' data-user='" + safeUser.ToLowerInvariant() + @"' data-rawsite='" + safeSite + @"' data-rawuser='" + safeUser + @"'>
   <div class='item-info'>
     <div class='item-header'>
       <span class='item-icon'>🔐</span>
@@ -159,14 +193,15 @@ namespace BlackBrowser
     </div>
     <div class='item-user'>👤 <strong>" + safeUser + @"</strong></div>
     <div class='item-pass-row'>
-      <span class='pass-mask' id='p-" + siteParam + @"'>••••••••••••</span>
-      <button class='btn-sm' onclick='togglePass(""p-" + siteParam + @""", """ + safePass + @""", this)'>👁️ Show</button>
-      <button class='btn-sm' onclick='copyText(""" + safePass + @""", this)'>📋 Copy</button>
+      <span class='pass-mask' data-shown='0'>••••••••••••</span>
+      <span class='pass-secret' style='display:none'>" + safePass + @"</span>
+      <button type='button' class='btn-sm btn-toggle'>👁️ Show</button>
+      <button type='button' class='btn-sm btn-copy'>📋 Copy</button>
     </div>
     <div class='item-date'>Added: " + safeDate + @"</div>
   </div>
   <div class='item-actions'>
-    <button class='btn-del' onclick='if(confirm(""Remove saved password for " + safeSite + @"?"")) location.href=""black://remove-password?site=" + siteParam + @"""'>🗑️ Remove</button>
+    <button type='button' class='btn-del'>🗑️ Remove</button>
   </div>
 </div>");
                 }
@@ -177,10 +212,9 @@ namespace BlackBrowser
 <head>
 <meta charset='utf-8'>
 <title>Saved Passwords — Black Firefox</title>
-<link href='https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&family=Inter:wght@400;500;600&display=swap' rel='stylesheet'>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Segoe UI Variable Display','Plus Jakarta Sans','Inter',sans-serif;background:" + bg + @";color:" + textColor + @";padding:36px 24px;max-width:880px;margin:0 auto;-webkit-font-smoothing:antialiased}
+body{font-family:'Segoe UI Variable Display','Segoe UI',system-ui,-apple-system,sans-serif;background:" + bg + @";color:" + textColor + @";padding:36px 24px;max-width:880px;margin:0 auto;-webkit-font-smoothing:antialiased}
 .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid " + border + @"}
 .title{font-size:26px;font-weight:700;background:linear-gradient(135deg, #3b82f6, #8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .sub{font-size:13.5px;color:" + muted + @";margin-top:6px}
@@ -195,7 +229,7 @@ body{font-family:'Segoe UI Variable Display','Plus Jakarta Sans','Inter',sans-se
 .badge{font-size:11px;padding:2px 8px;border-radius:8px;font-weight:600;background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3)}
 .item-user{font-size:13.5px;color:" + muted + @"}
 .item-pass-row{display:flex;align-items:center;gap:8px;margin-top:4px}
-.pass-mask{font-family:monospace;font-size:14px;color:#a78bfa;font-weight:600;letter-spacing:2px}
+.pass-mask{font-family:'Cascadia Code','Consolas',monospace;font-size:14px;color:#a78bfa;font-weight:600;letter-spacing:2px}
 .item-date{font-size:11.5px;color:" + muted + @";margin-top:4px}
 .btn-sm{padding:4px 10px;border-radius:8px;border:1px solid " + border + @";background:rgba(255,255,255,0.06);color:" + textColor + @";font-size:12px;font-weight:600;cursor:pointer;transition:all .2s}
 .btn-sm:hover{background:rgba(59,130,246,0.2);border-color:#3b82f6}
@@ -229,24 +263,38 @@ function filterList(q){
     el.style.display = (site.indexOf(q) !== -1 || user.indexOf(q) !== -1) ? 'flex' : 'none';
   });
 }
-function togglePass(id, pass, btn){
-  var el = document.getElementById(id);
-  if(!el) return;
-  if(el.textContent === pass){
-    el.textContent = '••••••••••••';
-    btn.textContent = '👁️ Show';
-  } else {
-    el.textContent = pass;
-    btn.textContent = '🙈 Hide';
+document.getElementById('list').addEventListener('click', function(e){
+  var btn = e.target.closest('button');
+  if(!btn) return;
+  var card = btn.closest('.item');
+  if(!card) return;
+  var secretEl = card.querySelector('.pass-secret');
+  var maskEl = card.querySelector('.pass-mask');
+  var pass = secretEl ? secretEl.textContent : '';
+  if(btn.classList.contains('btn-toggle')){
+    if(maskEl.getAttribute('data-shown') === '1'){
+      maskEl.textContent = '••••••••••••';
+      maskEl.setAttribute('data-shown', '0');
+      btn.textContent = '👁️ Show';
+    } else {
+      maskEl.textContent = pass;
+      maskEl.setAttribute('data-shown', '1');
+      btn.textContent = '🙈 Hide';
+    }
+  } else if(btn.classList.contains('btn-copy')){
+    navigator.clipboard.writeText(pass).then(function(){
+      var old = btn.textContent;
+      btn.textContent = '✓ Copied!';
+      setTimeout(function(){ btn.textContent = old; }, 1500);
+    });
+  } else if(btn.classList.contains('btn-del')){
+    var site = card.getAttribute('data-rawsite') || '';
+    var user = card.getAttribute('data-rawuser') || '';
+    if(confirm('Remove saved password for ' + site + (user ? ' (' + user + ')' : '') + '?')){
+      location.href = 'black://remove-password?site=' + encodeURIComponent(site) + '&user=' + encodeURIComponent(user);
+    }
   }
-}
-function copyText(txt, btn){
-  navigator.clipboard.writeText(txt).then(function(){
-    var old = btn.textContent;
-    btn.textContent = '✓ Copied!';
-    setTimeout(function(){ btn.textContent = old; }, 1500);
-  });
-}
+});
 </script>
 
 </body>

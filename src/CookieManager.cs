@@ -60,10 +60,9 @@ namespace BlackBrowser
 <head>
 <meta charset='utf-8'>
 <title>Local Cookies — Black Firefox</title>
-<link href='https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&family=Inter:wght@400;500;600&display=swap' rel='stylesheet'>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Segoe UI Variable Display','Plus Jakarta Sans','Inter',sans-serif;background:" + bg + @";color:" + textColor + @";padding:36px 24px;max-width:880px;margin:0 auto;-webkit-font-smoothing:antialiased}
+body{font-family:'Segoe UI Variable Display','Segoe UI',system-ui,-apple-system,sans-serif;background:" + bg + @";color:" + textColor + @";padding:36px 24px;max-width:880px;margin:0 auto;-webkit-font-smoothing:antialiased}
 .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid " + border + @"}
 .title{font-size:26px;font-weight:700;background:linear-gradient(135deg, #f59e0b, #ef4444);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .sub{font-size:13.5px;color:" + muted + @";margin-top:6px}

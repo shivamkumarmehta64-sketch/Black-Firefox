@@ -29,47 +29,77 @@ namespace BlackBrowser
 
         private static void Load()
         {
-            try
+            lock (fileLock)
             {
-                if (File.Exists(StoragePath))
+                try
                 {
-                    var serializer = new JavaScriptSerializer();
-                    var list = serializer.Deserialize<List<DownloadItem>>(File.ReadAllText(StoragePath));
-                    if (list != null) downloadsList = list;
+                    if (File.Exists(StoragePath))
+                    {
+                        var serializer = new JavaScriptSerializer();
+                        var list = serializer.Deserialize<List<DownloadItem>>(File.ReadAllText(StoragePath, Encoding.UTF8));
+                        if (list != null) downloadsList = list;
+                    }
                 }
+                catch { }
             }
-            catch { }
         }
 
         private static void Save()
         {
-            try
+            lock (fileLock)
             {
-                string dir = Path.GetDirectoryName(StoragePath);
-                if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
-                var serializer = new JavaScriptSerializer();
-                lock (fileLock)
-                    File.WriteAllText(StoragePath, serializer.Serialize(downloadsList));
+                try
+                {
+                    string dir = Path.GetDirectoryName(StoragePath);
+                    if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                    var serializer = new JavaScriptSerializer();
+                    File.WriteAllText(StoragePath, serializer.Serialize(downloadsList), Encoding.UTF8);
+                }
+                catch { }
             }
-            catch { }
+        }
+
+        public static string FormatBytes(long totalBytes)
+        {
+            if (totalBytes <= 0) return "Unknown Size";
+            if (totalBytes < 1024) return totalBytes + " B";
+            if (totalBytes < 1024 * 1024) return Math.Round(totalBytes / 1024.0, 1) + " KB";
+            if (totalBytes < 1024L * 1024L * 1024L) return Math.Round(totalBytes / (1024.0 * 1024.0), 2) + " MB";
+            return Math.Round(totalBytes / (1024.0 * 1024.0 * 1024.0), 2) + " GB";
         }
 
         public static void AddDownload(string fileName, string filePath, long totalBytes)
         {
             lock (fileLock)
             {
-                double mb = Math.Round(totalBytes / (1024.0 * 1024.0), 2);
-                string sizeStr = mb > 0 ? mb.ToString() + " MB" : "Unknown Size";
-
                 downloadsList.Insert(0, new DownloadItem
                 {
                     FileName = fileName,
                     FilePath = filePath,
-                    TotalBytes = sizeStr,
+                    TotalBytes = FormatBytes(totalBytes),
                     DateAdded = DateTime.Now.ToString("yyyy-MM-dd HH:mm")
                 });
             }
             Save();
+        }
+
+        public static void UpdateDownloadSize(string filePath, long totalBytes)
+        {
+            if (string.IsNullOrEmpty(filePath) || totalBytes <= 0) return;
+            bool updated = false;
+            lock (fileLock)
+            {
+                foreach (var item in downloadsList)
+                {
+                    if (string.Equals(item.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        item.TotalBytes = FormatBytes(totalBytes);
+                        updated = true;
+                        break;
+                    }
+                }
+            }
+            if (updated) Save();
         }
 
         public static void ClearDownloads()
@@ -88,6 +118,14 @@ namespace BlackBrowser
             return null;
         }
 
+        public static int GetDownloadsCount()
+        {
+            lock (fileLock)
+            {
+                return downloadsList.Count;
+            }
+        }
+
         public static string GetDownloadsHtml(bool isDarkMode)
         {
             string bg = isDarkMode ? "#0b0d1b" : "#f5f6fa";
@@ -102,10 +140,9 @@ namespace BlackBrowser
 <head>
 <meta charset='utf-8'>
 <title>Local Downloads — Black Firefox</title>
-<link href='https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&family=Inter:wght@400;500;600&display=swap' rel='stylesheet'>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Segoe UI Variable Display','Plus Jakarta Sans','Inter',sans-serif;background:" + bg + @";color:" + textColor + @";padding:36px 24px;max-width:860px;margin:0 auto;-webkit-font-smoothing:antialiased}
+body{font-family:'Segoe UI Variable Display','Segoe UI',system-ui,-apple-system,sans-serif;background:" + bg + @";color:" + textColor + @";padding:36px 24px;max-width:860px;margin:0 auto;-webkit-font-smoothing:antialiased}
 .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:32px;padding-bottom:16px;border-bottom:1px solid " + border + @"}
 .title{font-size:26px;font-weight:700;background:linear-gradient(135deg, #10b981, #06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .sub{font-size:13.5px;color:" + muted + @";margin-top:6px}

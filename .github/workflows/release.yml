@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   build-and-release:
@@ -21,19 +22,71 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Build Black Firefox Executable
+      - name: Build Black Firefox Executable (x64)
         shell: cmd
         run: ci-build.bat
 
-      - name: Prepare Release Package
+      - name: Verify PE Architecture & WebView2 Dependencies
+        shell: pwsh
+        run: |
+          $bytes = [System.IO.File]::ReadAllBytes("Black.exe")
+          $peOffset = [System.BitConverter]::ToInt32($bytes, 0x3C)
+          $machine = [System.BitConverter]::ToUInt16($bytes, $peOffset + 4)
+          Write-Host ("Black.exe PE Machine: 0x{0:X4}" -f $machine)
+          if ($machine -ne 0x8664) {
+            throw ("Expected x64 PE (0x8664) but got 0x{0:X4}" -f $machine)
+          }
+
+      - name: Check SignPath Secrets Availability
+        id: signpath_check
+        shell: pwsh
+        env:
+          API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          ORG_ID: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          PROJ_SLUG: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
+          POL_SLUG: ${{ secrets.SIGNPATH_SIGNING_POLICY_SLUG }}
+        run: |
+          $has = (-not [string]::IsNullOrWhiteSpace($env:API_TOKEN)) -and (-not [string]::IsNullOrWhiteSpace($env:ORG_ID)) -and (-not [string]::IsNullOrWhiteSpace($env:PROJ_SLUG)) -and (-not [string]::IsNullOrWhiteSpace($env:POL_SLUG))
+          "enabled=$($has.ToString().ToLower())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Upload Unsigned Black.exe for SignPath
+        id: upload_unsigned
+        if: steps.signpath_check.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: BlackFirefox-unsigned
+          path: Black.exe
+
+      - name: Sign Black.exe with SignPath.io
+        if: steps.signpath_check.outputs.enabled == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ secrets.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.upload_unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: ./signed
+
+      - name: Use Signed Binary for Packaging
+        if: steps.signpath_check.outputs.enabled == 'true'
+        shell: pwsh
+        run: |
+          $signed = Get-ChildItem -Path "./signed" -Filter "*.exe" -Recurse | Select-Object -First 1
+          if (-not $signed) { throw "Signed .exe not found under ./signed" }
+          Copy-Item -Force $signed.FullName "Black.exe"
+
+      - name: Prepare Release Packages (Portable ZIP + Windows Setup + SHA256SUMS)
         shell: pwsh
         run: |
           $ver = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}" } else { "${{ github.event.inputs.version }}" }
           if (-not $ver) { $ver = "v9.0.0" }
-          
+          $appVer = $ver.TrimStart('v', 'V')
+
           $pkgDir = "BlackFirefox-$ver-Windows-x64"
-          New-Item -ItemType Directory -Force -Path $pkgDir
-          
+          New-Item -ItemType Directory -Force -Path $pkgDir | Out-Null
+
           Copy-Item "Black.exe" -Destination "$pkgDir\"
           Copy-Item "Microsoft.Web.WebView2.Core.dll" -Destination "$pkgDir\"
           Copy-Item "Microsoft.Web.WebView2.WinForms.dll" -Destination "$pkgDir\"
@@ -43,13 +96,39 @@ jobs:
           Copy-Item "run.bat" -Destination "$pkgDir\"
           Copy-Item "LICENSE" -Destination "$pkgDir\"
           Copy-Item "README.md" -Destination "$pkgDir\"
-          
-          New-Item -ItemType Directory -Force -Path "$pkgDir\assets\icons"
+
+          New-Item -ItemType Directory -Force -Path "$pkgDir\assets\icons" | Out-Null
           Copy-Item "assets\icons\*.png" -Destination "$pkgDir\assets\icons\"
-          
+
           $zipName = "BlackFirefox-$ver-Windows-x64.zip"
           Compress-Archive -Path "$pkgDir\*" -DestinationPath $zipName -Force
           Write-Host "Created distribution zip: $zipName"
+
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            $iscc = "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
+          }
+          if (-not (Test-Path $iscc)) {
+            Write-Host "Installing Inno Setup 6 via Chocolatey..."
+            choco install innosetup -y --no-progress
+            $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          }
+
+          $setupBase = "BlackFirefox-$ver-Windows-x64-Setup"
+          New-Item -ItemType Directory -Force -Path "dist" | Out-Null
+          & $iscc "/Q" "/DMyAppVersion=$appVer" "/DMySetupBaseName=$setupBase" "/O." "installer.iss"
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed." }
+          Write-Host "Created installer: $setupBase.exe"
+
+          $filesToHash = @("$setupBase.exe", $zipName)
+          $sumLines = foreach ($f in $filesToHash) {
+            if (Test-Path $f) {
+              $h = (Get-FileHash -Path $f -Algorithm SHA256).Hash.ToLowerInvariant()
+              "$h  $f"
+            }
+          }
+          Set-Content -Path "SHA256SUMS.txt" -Value $sumLines -Encoding ASCII
+          Write-Host "Generated SHA256SUMS.txt"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -60,8 +139,9 @@ jobs:
           prerelease: false
           generate_release_notes: true
           files: |
-            Black.exe
+            BlackFirefox-*-Setup.exe
             BlackFirefox-*.zip
+            SHA256SUMS.txt
 
       - name: Upload Artifacts (Workflow Dispatch)
         uses: actions/upload-artifact@v4
@@ -71,3 +151,5 @@ jobs:
           path: |
             Black.exe
             BlackFirefox-*.zip
+            BlackFirefox-*-Setup.exe
+            SHA256SUMS.txt

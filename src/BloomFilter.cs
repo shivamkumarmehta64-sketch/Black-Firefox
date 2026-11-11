@@ -42,7 +42,7 @@ namespace BlackBrowser
             // Kirsch-Mitzenmacher optimization: generate k hashes using h(i) = h1 + i * h2
             for (int i = 0; i < _hashFunctionCount; i++)
             {
-                int combinedHash = Math.Abs((h1 + i * h2) % _size);
+                int combinedHash = (int)((uint)(h1 + i * h2) % (uint)_size);
                 _bitArray.Set(combinedHash, true);
             }
         }
@@ -57,7 +57,7 @@ namespace BlackBrowser
 
             for (int i = 0; i < _hashFunctionCount; i++)
             {
-                int combinedHash = Math.Abs((h1 + i * h2) % _size);
+                int combinedHash = (int)((uint)(h1 + i * h2) % (uint)_size);
                 if (!_bitArray.Get(combinedHash))
                     return false; // Definitely not present
             }
