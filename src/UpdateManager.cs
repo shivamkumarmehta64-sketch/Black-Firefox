@@ -30,7 +30,7 @@ namespace BlackBrowser
 
     public static class UpdateManager
     {
-        public const string CurrentVersion = "v9.0.1";
+        public const string CurrentVersion = "v9.1.0";
         public const string GitHubRepo = "shivamkumarmehta64-sketch/Black-Firefox";
         private static readonly string ApiUrl = "https://api.github.com/repos/" + GitHubRepo + "/releases/latest";
 
@@ -78,7 +78,7 @@ namespace BlackBrowser
                 {
                     ServicePointManager.SecurityProtocol = ServicePointManager.SecurityProtocol | (SecurityProtocolType)3072; // TLS 1.2
                     HttpWebRequest request = (HttpWebRequest)WebRequest.Create(ApiUrl);
-                    request.UserAgent = "Black-Firefox-Browser/" + CurrentVersion;
+                    request.UserAgent = "Black-Browser/" + CurrentVersion;
                     request.Timeout = 8000;
                     request.Accept = "application/vnd.github.v3+json";
 
@@ -170,7 +170,7 @@ namespace BlackBrowser
                             }
 
                             string downloadUrl = chosen != null ? chosen.Url : htmlUrl;
-                            string fileName = chosen != null ? chosen.Name : "BlackFirefox-Setup.exe";
+                            string fileName = chosen != null ? chosen.Name : "BlackBrowser-Setup.exe";
                             long fileSize = chosen != null ? chosen.Size : 0;
 
                             bool isNewer = CompareVersions(tag, CurrentVersion) > 0;
@@ -237,7 +237,7 @@ namespace BlackBrowser
                 string sumsText;
                 using (WebClient wc = new WebClient())
                 {
-                    wc.Headers.Add("User-Agent", "Black-Firefox-Browser/" + CurrentVersion);
+                    wc.Headers.Add("User-Agent", "Black-Browser/" + CurrentVersion);
                     sumsText = wc.DownloadString(checksumUrl);
                 }
                 if (string.IsNullOrWhiteSpace(sumsText)) return true;
@@ -306,11 +306,11 @@ namespace BlackBrowser
 
             try
             {
-                string tempDir = Path.Combine(Path.GetTempPath(), "BlackFirefoxUpdate");
+                string tempDir = Path.Combine(Path.GetTempPath(), "BlackBrowserUpdate");
                 if (!Directory.Exists(tempDir)) Directory.CreateDirectory(tempDir);
 
                 string defaultExt = release.IsZipArchive ? ".zip" : ".exe";
-                string fallbackName = release.IsZipArchive ? "BlackFirefox-Update.zip" : "BlackFirefox-Setup.exe";
+                string fallbackName = release.IsZipArchive ? "BlackBrowser-Update.zip" : "BlackBrowser-Setup.exe";
                 string safeFileName = Path.GetFileName(release.FileName ?? fallbackName);
                 if (string.IsNullOrEmpty(safeFileName) || !safeFileName.EndsWith(defaultExt, StringComparison.OrdinalIgnoreCase))
                 {
@@ -320,11 +320,11 @@ namespace BlackBrowser
                 string destFile = Path.Combine(tempDir, safeFileName);
                 try { if (File.Exists(destFile)) File.Delete(destFile); } catch { }
 
-                if (onStatus != null) onStatus("⬇️ Downloading Black Firefox update (" + release.TagName + ")...");
+                if (onStatus != null) onStatus("⬇️ Downloading Black Browser update (" + release.TagName + ")...");
 
                 ServicePointManager.SecurityProtocol = ServicePointManager.SecurityProtocol | (SecurityProtocolType)3072;
                 WebClient client = new WebClient();
-                client.Headers.Add("User-Agent", "Black-Firefox-Browser/" + CurrentVersion);
+                client.Headers.Add("User-Agent", "Black-Browser/" + CurrentVersion);
 
                 client.DownloadProgressChanged += (s, e) =>
                 {
@@ -406,7 +406,7 @@ namespace BlackBrowser
 
                         File.WriteAllText(cmdPath, script, Encoding.ASCII);
 
-                        if (onStatus != null) onStatus("✅ Update ready! Restarting Black Firefox...");
+                        if (onStatus != null) onStatus("✅ Update ready! Restarting Black Browser...");
                         ProcessStartInfo psi = new ProcessStartInfo("cmd.exe", "/c \"" + cmdPath + "\"");
                         psi.UseShellExecute = false;
                         psi.CreateNoWindow = true;

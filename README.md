@@ -1,13 +1,13 @@
-# 🖤 Black Firefox
+# 🖤 Black Browser
 
-[![Release](https://img.shields.io/badge/Release-v9.0.0-0C63E8.svg)](https://github.com/shivamkumarmehta64-sketch/Black-Firefox/releases)
+[![Release](https://img.shields.io/badge/Release-v9.1.0-0C63E8.svg)](https://github.com/shivamkumarmehta64-sketch/Black-Firefox/releases)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6.svg)](https://microsoft.com/windows)
 [![Engine](https://img.shields.io/badge/Engine-Microsoft%20WebView2%20(Chromium)-00C7B7.svg)](https://developer.microsoft.com/en-us/microsoft-edge/webview2/)
 [![Framework](https://img.shields.io/badge/.NET%20Framework-4.8-512BD4.svg)](https://dotnet.microsoft.com/download/dotnet-framework/net48)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Zero Telemetry](https://img.shields.io/badge/Telemetry-0%25%20Local%20Only-emerald.svg)](#privacy--security)
 
-**Black Firefox** is an ultra-fast, minimal, privacy-first web browser for Windows 10/11 built natively in **C# .NET 4.8** with **Microsoft WebView2 (Chromium)**.
+**Black Browser** is an ultra-fast, minimal, privacy-first web browser for Windows 10/11 built natively in **C# .NET 4.8** with **Microsoft WebView2 (Chromium)**.
 
 It delivers a sleek dark glassmorphic UI, a built-in 3-layer AdShield ad blocker, DPAPI-encrypted password storage, customizable Speed Dial dashboard, and zero cloud telemetry.
 
@@ -30,14 +30,14 @@ It delivers a sleek dark glassmorphic UI, a built-in 3-layer AdShield ad blocker
 ## 📥 Download & Installation
 
 ### Option 1: Windows Installer (Recommended for Most Users)
-1. Download **`BlackFirefox-v9.0.0-Windows-x64-Setup.exe`** from [GitHub Releases](https://github.com/shivamkumarmehta64-sketch/Black-Firefox/releases).
+1. Download **`BlackBrowser-v9.1.0-Windows-x64-Setup.exe`** from [GitHub Releases](https://github.com/shivamkumarmehta64-sketch/Black-Firefox/releases).
 2. Run the installer (per-user by default — no admin UAC required). It creates Start Menu & Desktop shortcuts, adds an Add/Remove Programs uninstaller, and automatically checks for the Microsoft WebView2 Runtime.
 
 ### Option 2: Portable ZIP Release
-1. Download **`BlackFirefox-v9.0.0-Windows-x64.zip`** from [GitHub Releases](https://github.com/shivamkumarmehta64-sketch/Black-Firefox/releases).
+1. Download **`BlackBrowser-v9.1.0-Windows-x64.zip`** from [GitHub Releases](https://github.com/shivamkumarmehta64-sketch/Black-Firefox/releases).
 2. Extract the archive anywhere on your PC.
 3. Run **`Black.exe`** directly, or run **`setup.bat`** to verify WebView2 and create Desktop & Start Menu shortcuts.
-4. Verify package integrity anytime using **`SHA256SUMS.txt`** from the release assets (`certutil -hashfile BlackFirefox-v9.0.0-Windows-x64-Setup.exe SHA256`).
+4. Verify package integrity anytime using **`SHA256SUMS.txt`** from the release assets (`certutil -hashfile BlackBrowser-v9.1.0-Windows-x64-Setup.exe SHA256`).
 
 ### Option 3: Build from Source
 No Visual Studio or MSBuild installation is required! Built using the native Windows .NET 4.8 compiler:
@@ -56,7 +56,7 @@ Black.exe
 ```cmd
 package-release.bat
 ```
-Generates `dist\BlackFirefox-v9.0.0-Windows-x64.zip`, `dist\SHA256SUMS.txt`, and (if Inno Setup 6 is installed) `dist\BlackFirefox-v9.0.0-Windows-x64-Setup.exe`.
+Generates `dist\BlackBrowser-v9.1.0-Windows-x64.zip`, `dist\SHA256SUMS.txt`, and (if Inno Setup 6 is installed) `dist\BlackBrowser-v9.1.0-Windows-x64-Setup.exe`.
 
 ---
 

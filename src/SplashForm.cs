@@ -158,7 +158,7 @@ namespace BlackBrowser
             using (SolidBrush titleBrush = new SolidBrush(Color.FromArgb(238, 240, 246)))
             using (SolidBrush tagBrush = new SolidBrush(Color.FromArgb(150, 156, 170)))
             {
-                string name = "Black Firefox";
+                string name = "Black Browser";
                 SizeF tSize = g.MeasureString(name, title);
                 g.DrawString(name, title, titleBrush,
                     new PointF((Width - tSize.Width) / 2f, logoY + logoSize + 12));

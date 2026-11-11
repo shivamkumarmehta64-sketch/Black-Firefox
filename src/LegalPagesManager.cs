@@ -41,7 +41,7 @@ namespace BlackBrowser
 "<head>\n" +
 "<meta charset='utf-8'>\n" +
 "<meta name='viewport' content='width=device-width, initial-scale=1'>\n" +
-"<title>" + HtmlEncode(title) + " — Black Firefox</title>\n" +
+"<title>" + HtmlEncode(title) + " — Black Browser</title>\n" +
 "<style>\n" +
 "*{margin:0;padding:0;box-sizing:border-box}\n" +
 "body{background:" + bg + ";color:" + textClr + ";font-family:'Segoe UI Variable Display','Segoe UI',system-ui,-apple-system,sans-serif;line-height:1.6;min-height:100vh;padding:32px 20px}\n" +
@@ -69,9 +69,9 @@ namespace BlackBrowser
 "<div class='container'>\n" +
 "  <div class='header'>\n" +
 "    <div class='brand'>\n" +
-"      <div class='brand-icon'>&#x1F98A;</div>\n" +
+"      <div class='brand-icon'>&#x1F310;</div>\n" +
 "      <div>\n" +
-"        <div class='brand-title'>Black Firefox</div>\n" +
+"        <div class='brand-title'>Black Browser</div>\n" +
 "        <div class='brand-sub'>Legal &amp; Governance Hub</div>\n" +
 "      </div>\n" +
 "    </div>\n" +
@@ -86,7 +86,7 @@ namespace BlackBrowser
     bodyContent + "\n" +
 "  </div>\n" +
 "  <div class='footer'>\n" +
-"    Black Firefox Browser Engine &bull; Privacy First &bull; Local Storage Only &bull; Licensed under MIT\n" +
+"    Black Browser Engine &bull; Privacy First &bull; Local Storage Only &bull; Licensed under MIT\n" +
 "  </div>\n" +
 "</div>\n" +
 "</body>\n" +
@@ -96,18 +96,18 @@ namespace BlackBrowser
         public static string GetAboutHtml(bool dark)
         {
             string body =
-"<div class='page-title'>&#x1F98A; About Black Firefox</div>\n" +
+"<div class='page-title'>&#x1F310; About Black Browser</div>\n" +
 "<div class='page-subtitle'>An ultra-minimal, privacy-focused desktop browser for Windows.</div>\n" +
-"<div class='badge'>VERSION 9.0.1 — GLASSMORPHIC FIREFOX EDITION</div>\n" +
+"<div class='badge'>VERSION 9.1.0 — GLASSMORPHIC EDITION</div>\n" +
 "<h2>Architecture &amp; Tech Stack</h2>\n" +
-"<p>Black Firefox is built with native <strong>C# .NET 4.8</strong> and Microsoft <strong>WebView2 (Chromium engine)</strong>. It offers full hardware acceleration, low RAM consumption (~35-50 MB background footprint), and a custom Firefox Proton-inspired glassmorphic UI.</p>\n" +
+"<p>Black Browser is built with native <strong>C# .NET 4.8</strong> and Microsoft <strong>WebView2 (Chromium engine)</strong>. It offers full hardware acceleration, low RAM consumption (~35-50 MB background footprint), Container Tabs, and a custom dark glassmorphic UI.</p>\n" +
 "<h2>Core Pillars</h2>\n" +
 "<ul>\n" +
 "  <li><strong>Zero Telemetry:</strong> No analytics, tracking, or network calls home.</li>\n" +
 "  <li><strong>Local First:</strong> Bookmarks, browsing history, and preferences are stored exclusively on your device.</li>\n" +
-"  <li><strong>3-Layer AdShield:</strong> Built-in multi-layered ad &amp; tracker blocking engine.</li>\n" +
+"  <li><strong>3-Layer AdShield:</strong> Built-in multi-layered ad &amp; tracker blocking engine with URL tracking stripper.</li>\n" +
 "  <li><strong>GitHub Auto-Updates:</strong> Seamless in-app version checks and 1-click updates from official GitHub releases.</li>\n" +
-"  <li><strong>Smart Address Bar:</strong> Autocomplete suggestions from local bookmarks, history, and search engines.</li>\n" +
+"  <li><strong>Smart Address Bar:</strong> Autocomplete suggestions from local bookmarks, history, open tabs, and instant math.</li>\n" +
 "</ul>\n" +
 "<h2>GitHub &amp; Updates</h2>\n" +
 "<p>\n" +
@@ -120,7 +120,7 @@ namespace BlackBrowser
 "  &bull; <a href='black://privacy' style='color:#60a5fa;'>Privacy Policy</a><br>\n" +
 "  &bull; <a href='black://trademark' style='color:#60a5fa;'>Trademark Guidelines &amp; Disclaimer</a>\n" +
 "</p>";
-            return BuildBaseWrapper("About", "&#x1F98A;", "about", body, dark);
+            return BuildBaseWrapper("About", "&#x1F310;", "about", body, dark);
         }
 
         public static string GetTermsHtml(bool dark)
@@ -129,11 +129,11 @@ namespace BlackBrowser
 "<div class='page-title'>&#x1F4DC; Terms of Service</div>\n" +
 "<div class='page-subtitle'>Effective Date: January 1, 2026</div>\n" +
 "<h2>1. Acceptance of Terms</h2>\n" +
-"<p>By downloading, installing, or using Black Firefox (&quot;the Software&quot;), you agree to be bound by these Terms of Service. If you do not agree to these terms, do not install or use the Software.</p>\n" +
+"<p>By downloading, installing, or using Black Browser (&quot;the Software&quot;), you agree to be bound by these Terms of Service. If you do not agree to these terms, do not install or use the Software.</p>\n" +
 "<h2>2. Software License</h2>\n" +
-"<p>Black Firefox is open-source software provided under the <strong>MIT License</strong>. You are granted a non-exclusive, royalty-free license to use, modify, and distribute the Software in accordance with the MIT License terms.</p>\n" +
+"<p>Black Browser is open-source software provided under the <strong>MIT License</strong>. You are granted a non-exclusive, royalty-free license to use, modify, and distribute the Software in accordance with the MIT License terms.</p>\n" +
 "<h2>3. User Responsibilities &amp; Acceptable Use</h2>\n" +
-"<p>You agree to use Black Firefox only for lawful purposes. You are solely responsible for all browsing activities, content accessed, and data stored locally through the browser application.</p>\n" +
+"<p>You agree to use Black Browser only for lawful purposes. You are solely responsible for all browsing activities, content accessed, and data stored locally through the browser application.</p>\n" +
 "<h2>4. Disclaimer of Warranties</h2>\n" +
 "<p>THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.</p>\n" +
 "<h2>5. Limitation of Liability</h2>\n" +
@@ -147,13 +147,13 @@ namespace BlackBrowser
 "<div class='page-title'>&#x1F512; Privacy Policy</div>\n" +
 "<div class='page-subtitle'>Zero Telemetry Guarantee &bull; Local Data Storage Only</div>\n" +
 "<h2>1. Our Privacy Commitment</h2>\n" +
-"<p>Black Firefox was engineered from the ground up to respect user privacy. We believe your web browsing history and personal data belong to you and only you.</p>\n" +
+"<p>Black Browser was engineered from the ground up to respect user privacy. We believe your web browsing history and personal data belong to you and only you.</p>\n" +
 "<h2>2. Zero Data Collection</h2>\n" +
-"<p>Black Firefox <strong>does not collect, transmit, track, sell, or monetize</strong> any personal data, IP addresses, browsing metrics, or application telemetry.</p>\n" +
+"<p>Black Browser <strong>does not collect, transmit, track, sell, or monetize</strong> any personal data, IP addresses, browsing metrics, or application telemetry.</p>\n" +
 "<h2>3. Local Storage</h2>\n" +
 "<p>All browser data—including bookmarks, history records, custom dials, settings, and temporary caches—is stored strictly on your local device under <code>%LOCALAPPDATA%\\black-webview2</code>.</p>\n" +
 "<h2>4. Third-Party Web Traffic</h2>\n" +
-"<p>When you navigate to third-party websites, your HTTP requests are handled directly by the target servers and Microsoft WebView2 engine. Black Firefox includes a built-in 3-layer AdShield filter to restrict third-party tracking scripts and advertisement domains.</p>";
+"<p>When you navigate to third-party websites, your HTTP requests are handled directly by the target servers and Microsoft WebView2 engine. Black Browser includes a built-in 3-layer AdShield filter to restrict third-party tracking scripts and advertisement domains.</p>";
             return BuildBaseWrapper("Privacy Policy", "&#x1F512;", "privacy", body, dark);
         }
 
@@ -161,13 +161,13 @@ namespace BlackBrowser
         {
             string body =
 "<div class='page-title'>&#x2696;&#xFE0F; Trademark &amp; Brand Guidelines</div>\n" +
-"<div class='page-subtitle'>Brand Usage Notice &amp; Trademark Disclaimers</div>\n" +
-"<h2>1. Trademark Ownership</h2>\n" +
-"<p>&quot;Black Firefox&quot; is an independent community project. <strong>Firefox&reg;</strong> and the Firefox logo are registered trademarks of the <strong>Mozilla Foundation</strong>.</p>\n" +
-"<h2>2. Independence &amp; Non-Affiliation</h2>\n" +
-"<p>Black Firefox is an independent open-source project and is <strong>not affiliated with, endorsed by, or sponsored by Mozilla Corporation or the Mozilla Foundation</strong>.</p>\n" +
-"<h2>3. Brand Name Usage</h2>\n" +
-"<p>The name &quot;Black Firefox&quot; is used descriptively to refer to the dark-themed user interface inspired by Firefox Proton design guidelines. Derivatives and third-party redistributions must comply with Mozilla's trademark policies when referencing Firefox trademarks.</p>";
+"<div class='page-subtitle'>Independent Branding &amp; Non-Affiliation Notice</div>\n" +
+"<h2>1. Independent Identity</h2>\n" +
+"<p><strong>Black Browser</strong> is an independent open-source software project developed cleanly under its own name with zero affiliation with, endorsement by, or sponsorship from Mozilla Corporation, Microsoft Corporation, or Google LLC.</p>\n" +
+"<h2>2. Third-Party Marks</h2>\n" +
+"<p>Earlier prototypes referenced dark Proton-inspired aesthetics; all product branding uses the independent <strong>Black Browser</strong> mark to respect third-party trademarks. Windows&reg; and WebView2 are trademarks of Microsoft Corporation.</p>\n" +
+"<h2>3. Redistribution Guidelines</h2>\n" +
+"<p>Forks and redistributions under the MIT License may retain the name Black Browser cleanly or choose their own distinct branding without implying upstream vendor endorsement.</p>";
             return BuildBaseWrapper("Trademark Notice", "&#x2696;&#xFE0F;", "trademark", body, dark);
         }
     }

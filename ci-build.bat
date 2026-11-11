@@ -1,6 +1,6 @@
 @echo off
-title Black Firefox CI Build
-echo [CI] Building Black Firefox x64...
+title Black Browser CI Build
+echo [CI] Building Black Browser x64...
 set "CSC=C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 
 if not exist "%CSC%" (

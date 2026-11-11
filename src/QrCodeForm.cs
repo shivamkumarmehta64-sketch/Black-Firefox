@@ -14,7 +14,7 @@ namespace BlackBrowser
         public QrCodeForm(string url)
         {
             string safeUrl = url ?? "";
-            this.Text = "QR Code — Black Firefox";
+            this.Text = "QR Code — Black Browser";
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;

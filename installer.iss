@@ -1,15 +1,15 @@
-; Black Firefox Windows Installer Script (Inno Setup 6)
+; Black Browser Windows Installer Script (Inno Setup 6)
 ; Compiles cleanly for per-user installation (zero UAC prompt by default, optional admin override).
 
 #ifndef MyAppVersion
-  #define MyAppVersion "9.0.1"
+  #define MyAppVersion "9.1.0"
 #endif
 
 #ifndef MySetupBaseName
-  #define MySetupBaseName "BlackFirefox-v" + MyAppVersion + "-Windows-x64-Setup"
+  #define MySetupBaseName "BlackBrowser-v" + MyAppVersion + "-Windows-x64-Setup"
 #endif
 
-#define MyAppName "Black Firefox"
+#define MyAppName "Black Browser"
 #define MyAppPublisher "Shivam Kumar Mehta"
 #define MyAppURL "https://github.com/shivamkumarmehta64-sketch/Black-Firefox"
 #define MyAppExeName "Black.exe"
@@ -97,7 +97,7 @@ begin
     Exit;
 
   if MsgBox(
-    'Black Firefox uses the Microsoft Edge WebView2 Runtime, which is not currently installed on this PC.'#13#10#13#10 +
+    'Black Browser uses the Microsoft Edge WebView2 Runtime, which is not currently installed on this PC.'#13#10#13#10 +
     'Would you like Setup to download and install the official WebView2 Runtime (~2 MB) now?',
     mbConfirmation, MB_YESNO) <> IDYES then
     Exit;
@@ -111,7 +111,7 @@ begin
   end
   else
   begin
-    MsgBox('Could not download the WebView2 Runtime automatically. Black Firefox will prompt again on first launch if still missing.', mbInformation, MB_OK);
+    MsgBox('Could not download the WebView2 Runtime automatically. Black Browser will prompt again on first launch if still missing.', mbInformation, MB_OK);
   end;
 end;
 

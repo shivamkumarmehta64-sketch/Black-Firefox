@@ -211,7 +211,7 @@ namespace BlackBrowser
 
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            try { SetCurrentProcessExplicitAppUserModelID("BlackFirefox.Browser"); } catch { }
+            try { SetCurrentProcessExplicitAppUserModelID("BlackBrowser.App"); } catch { }
 
             if (!EnsureWebView2RuntimeAvailable())
             {
@@ -284,9 +284,9 @@ namespace BlackBrowser
             AppendLog("[" + DateTime.Now.ToString("HH:mm:ss") + "] WebView2 Runtime not detected on startup.");
 
             DialogResult choice = MessageBox.Show(
-                "Black Firefox requires the Microsoft Edge WebView2 Runtime to display websites, and it was not found on this PC.\n\n"
+                "Black Browser requires the Microsoft Edge WebView2 Runtime to display websites, and it was not found on this PC.\n\n"
                 + "Would you like to download and install the official WebView2 Runtime (~2 MB) now?",
-                "Black Firefox — WebView2 Runtime Required",
+                "Black Browser — WebView2 Runtime Required",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Warning);
 
@@ -297,7 +297,7 @@ namespace BlackBrowser
 
             try
             {
-                string setupDir = Path.Combine(Path.GetTempPath(), "BlackFirefoxSetup");
+                string setupDir = Path.Combine(Path.GetTempPath(), "BlackBrowserSetup");
                 if (!Directory.Exists(setupDir)) Directory.CreateDirectory(setupDir);
                 string bootstrapperPath = Path.Combine(setupDir, "MicrosoftEdgeWebview2Setup.exe");
 
@@ -306,7 +306,7 @@ namespace BlackBrowser
 
                 using (System.Net.WebClient wc = new System.Net.WebClient())
                 {
-                    wc.Headers.Add("User-Agent", "Black-Firefox-Setup/9.0");
+                    wc.Headers.Add("User-Agent", "Black-Browser-Setup/9.1");
                     wc.DownloadFile("https://go.microsoft.com/fwlink/p/?LinkId=2124703", bootstrapperPath);
                 }
 
@@ -330,7 +330,7 @@ namespace BlackBrowser
 
             DialogResult openManual = MessageBox.Show(
                 "WebView2 Runtime installation did not complete.\n\nOpen Microsoft's WebView2 download page in your default browser?",
-                "Black Firefox — WebView2 Setup",
+                "Black Browser — WebView2 Setup",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Error);
             if (openManual == DialogResult.Yes)

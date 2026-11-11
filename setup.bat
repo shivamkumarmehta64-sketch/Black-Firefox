@@ -1,15 +1,15 @@
 @echo off
 setlocal
-title Black Firefox Setup
+title Black Browser Setup
 echo ========================================================
-echo             Black Firefox v9.0 - Setup
+echo             Black Browser v9.1 - Setup
 echo ========================================================
 echo.
 
 if not exist "%~dp0src\BrowserForm.cs" goto :portable_install
 if not exist "%~dp0GenRes.cs" goto :portable_install
 
-echo [INFO] Source checkout detected. Compiling Black Firefox (x64)...
+echo [INFO] Source checkout detected. Compiling Black Browser (x64)...
 echo.
 
 set "CSC=C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
@@ -20,7 +20,7 @@ echo [1/3] Building version resource (black.res)...
 if errorlevel 1 goto :errgenres
 "%~dp0GenRes.exe" "%~dp0icon.ico" "%~dp0black.res"
 if errorlevel 1 goto :errres
-echo [OK] black.res generated (FileDescription = "Black Firefox")!
+echo [OK] black.res generated (FileDescription = "Black Browser")!
 
 echo [2/3] Compiling src\*.cs (x64)...
 pushd "%~dp0"
@@ -53,19 +53,19 @@ if defined WV2_FOUND (
     echo [OK] Microsoft Edge WebView2 Runtime is installed.
 ) else (
     echo [WARN] Microsoft Edge WebView2 Runtime was not detected in registry.
-    echo        Black Firefox will prompt to install it on first launch, or you can
+    echo        Black Browser will prompt to install it on first launch, or you can
     echo        download it now from: https://go.microsoft.com/fwlink/p/?LinkId=2124703
 )
 echo.
 
 echo [3/3] Creating Desktop and Start Menu shortcuts...
-powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $targets = @([System.IO.Path]::Combine([Environment]::GetFolderPath('Desktop'), 'Black Firefox.lnk'), [System.IO.Path]::Combine([Environment]::GetFolderPath('Programs'), 'Black Firefox.lnk')); foreach ($p in $targets) { $dir = [System.IO.Path]::GetDirectoryName($p); if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }; $sc = $ws.CreateShortcut($p); $sc.TargetPath = '%~dp0Black.exe'; $sc.WorkingDirectory = '%~dp0'; $sc.IconLocation = '%~dp0icon.ico,0'; $sc.Description = 'Black Firefox v9.0 - Native WebView2 Browser'; $sc.Save() }"
+powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $targets = @([System.IO.Path]::Combine([Environment]::GetFolderPath('Desktop'), 'Black Browser.lnk'), [System.IO.Path]::Combine([Environment]::GetFolderPath('Programs'), 'Black Browser.lnk')); foreach ($p in $targets) { $dir = [System.IO.Path]::GetDirectoryName($p); if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }; $sc = $ws.CreateShortcut($p); $sc.TargetPath = '%~dp0Black.exe'; $sc.WorkingDirectory = '%~dp0'; $sc.IconLocation = '%~dp0icon.ico,0'; $sc.Description = 'Black Browser v9.1 - Native WebView2 Browser'; $sc.Save() }"
 if errorlevel 1 echo [WARN] Shortcut creation encountered an issue.
 
 echo [OK] Shortcuts created!
 echo.
 echo ========================================================
-echo Setup complete! Launch Black Firefox from Desktop or Start Menu.
+echo Setup complete! Launch Black Browser from Desktop or Start Menu.
 echo ========================================================
 echo.
 exit /b 0

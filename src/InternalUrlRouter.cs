@@ -85,7 +85,7 @@ namespace BlackBrowser
             if (lower.EndsWith("/bookmarks") || lower == "black://bookmarks") return "Local Bookmarks";
             if (lower.EndsWith("/downloads") || lower == "black://downloads") return "Local Downloads";
             if (lower.EndsWith("/passwords") || lower == "black://passwords") return "Saved Passwords";
-            if (lower.EndsWith("/about") || lower == "black://about") return "About Black Firefox";
+            if (lower.EndsWith("/about") || lower == "black://about") return "About Black Browser";
             if (lower.EndsWith("/terms") || lower == "black://terms") return "Terms of Service";
             if (lower.EndsWith("/privacy") || lower == "black://privacy") return "Privacy Policy";
             if (lower.EndsWith("/trademark") || lower == "black://trademark") return "Trademark Notice";

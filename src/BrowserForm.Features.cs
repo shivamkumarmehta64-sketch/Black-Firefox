@@ -219,7 +219,7 @@ namespace BlackBrowser
         {
             using (Form dlg = new Form())
             {
-                dlg.Text = "Audio & Media Hub — Black Firefox";
+                dlg.Text = "Audio & Media Hub — Black Browser";
                 dlg.StartPosition = FormStartPosition.CenterParent;
                 dlg.FormBorderStyle = FormBorderStyle.FixedDialog;
                 dlg.MaximizeBox = false;

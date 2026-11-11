@@ -290,7 +290,7 @@ namespace BlackBrowser
 <head>
 <meta charset='utf-8'>
 <meta name='viewport' content='width=device-width, initial-scale=1'>
-<title>New Tab • Black Firefox</title>
+<title>New Tab • Black Browser</title>
 <style>
 :root {
   --font-main: 'Segoe UI Variable Display', 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
@@ -1397,9 +1397,9 @@ body {
   <!-- Topbar -->
   <div class='topbar'>
     <a class='brand' href='black://check-updates' title='Click to check for updates (" + SimpleHtmlEncode(UpdateManager.CurrentVersion) + @")'>
-      <div class='brand-badge-icon'>&#x1F98A;</div>
+      <div class='brand-badge-icon'>&#x1F310;</div>
       <div>
-        <div class='brand-text-title'>Black Firefox</div>
+        <div class='brand-text-title'>Black Browser</div>
         <div class='brand-sub'>" + SimpleHtmlEncode(UpdateManager.CurrentVersion) + @" &bull; Private &amp; Secure</div>
       </div>
     </a>
@@ -1461,7 +1461,7 @@ body {
     <a class='action-pill" + (adShieldEnabled ? " on" : "") + @"' href='black://toggle-adshield' title='Pause or resume AdShield'>" + (adShieldEnabled ? "&#x1F6E1;&#xFE0F; AdShield ON" : "&#x23F8;&#xFE0F; AdShield OFF") + @"</a>
     <a class='action-pill' href='black://qr' title='Generate QR Code for Current Page'>&#x1F4F1; QR</a>
     <a class='action-pill' href='black://screenshot' title='Capture Viewport Screenshot'>&#x1F4F8; Capture</a>
-    <a class='action-pill' href='black://set-default' title='Set Black Firefox as Default Windows Browser'>&#x1F310; Set Default</a>
+    <a class='action-pill' href='black://set-default' title='Set Black Browser as Default Windows Browser'>&#x1F310; Set Default</a>
     <span class='strip-sep'></span>
     <div class='theme-pills' title='New Tab Wallpaper Theme'>
       <a class='theme-pill" + (selectedBg == "aurora" ? " active" : "") + @"' href='black://setbg?bg=aurora'>Aurora</a>
@@ -1631,7 +1631,7 @@ body {
 
   <!-- Footer -->
   <div class='footer'>
-    <div>&#x1F98A; Black Firefox Engine &bull; Private, Fast &bull; MIT License</div>
+    <div>&#x1F310; Black Browser Engine &bull; Private, Fast &bull; MIT License</div>
     <div class='footer-links'>
       <a class='footer-link' href='javascript:void(0)' onclick='openShortcutsModal()'>&#x2328;&#xFE0F; Shortcuts (?)</a>
       <a class='footer-link' href='black://about'>About</a>

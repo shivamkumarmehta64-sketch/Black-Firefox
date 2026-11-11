@@ -171,7 +171,7 @@ namespace BlackBrowser
             StringBuilder cards = new StringBuilder();
             if (items == null || items.Count == 0)
             {
-                cards.Append("<div class='empty'>No saved passwords yet. As you log into websites, Black Firefox will prompt you to securely save them!</div>");
+                cards.Append("<div class='empty'>No saved passwords yet. As you log into websites, Black Browser will prompt you to securely save them!</div>");
             }
             else
             {
@@ -211,7 +211,7 @@ namespace BlackBrowser
 <html>
 <head>
 <meta charset='utf-8'>
-<title>Saved Passwords — Black Firefox</title>
+<title>Saved Passwords — Black Browser</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Segoe UI Variable Display','Segoe UI',system-ui,-apple-system,sans-serif;background:" + bg + @";color:" + textColor + @";padding:36px 24px;max-width:880px;margin:0 auto;-webkit-font-smoothing:antialiased}

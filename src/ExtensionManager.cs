@@ -249,7 +249,7 @@ namespace BlackBrowser
                 <div class='empty-state'>
                     <div class='empty-icon'>🧩</div>
                     <div class='empty-title'>No Extensions Installed Yet</div>
-                    <div class='empty-desc'>Load unpacked Chrome / Edge extensions from your local disk to extend Black Firefox with ad blockers, developer tools, themes, and scripts.</div>
+                    <div class='empty-desc'>Load unpacked Chrome / Edge extensions from your local disk to extend Black Browser with ad blockers, developer tools, themes, and scripts.</div>
                     <a href='black://load-extension' class='btn-primary' style='display:inline-block;margin-top:16px;'>📂 Load Unpacked Extension</a>
                 </div>");
             }
@@ -297,7 +297,7 @@ namespace BlackBrowser
 <html>
 <head>
     <meta charset='utf-8'>
-    <title>Extensions • Black Firefox</title>
+    <title>Extensions • Black Browser</title>
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI Variable Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
         body {{

@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build Black Firefox (x64)
+      - name: Build Black Browser (x64)
         shell: cmd
         run: ci-build.bat
 
@@ -23,7 +23,7 @@ jobs:
         id: upload_unsigned
         uses: actions/upload-artifact@v4
         with:
-          name: BlackFirefox-unsigned
+          name: BlackBrowser-unsigned
           path: Black.exe
 
       - name: Check SignPath Secrets Availability
@@ -54,5 +54,5 @@ jobs:
         if: steps.signpath_check.outputs.enabled == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: BlackFirefox-signed
+          name: BlackBrowser-signed
           path: ./signed/*.exe

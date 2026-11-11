@@ -20,8 +20,8 @@ namespace BlackBrowser
                     return false;
                 }
 
-                string progId = "BlackFirefoxHTML";
-                string appName = "Black Firefox";
+                string progId = "BlackBrowserHTML";
+                string appName = "Black Browser";
                 string iconPath = exePath + ",0";
                 string openCommand = "\"" + exePath + "\" \"%1\"";
 
@@ -46,7 +46,7 @@ namespace BlackBrowser
                 }
 
                 // 2. Register StartMenuInternet client under HKCU
-                using (RegistryKey client = Registry.CurrentUser.CreateSubKey(@"Software\Clients\StartMenuInternet\BlackFirefox"))
+                using (RegistryKey client = Registry.CurrentUser.CreateSubKey(@"Software\Clients\StartMenuInternet\BlackBrowser"))
                 {
                     if (client != null)
                     {
@@ -66,7 +66,7 @@ namespace BlackBrowser
                         {
                             if (capabilities != null)
                             {
-                                capabilities.SetValue("ApplicationDescription", "Black Firefox - High performance, private web browser.");
+                                capabilities.SetValue("ApplicationDescription", "Black Browser - High performance, private web browser.");
                                 capabilities.SetValue("ApplicationIcon", iconPath);
                                 capabilities.SetValue("ApplicationName", appName);
 
@@ -100,7 +100,7 @@ namespace BlackBrowser
                 {
                     if (regApps != null)
                     {
-                        regApps.SetValue("BlackFirefox", @"Software\Clients\StartMenuInternet\BlackFirefox\Capabilities");
+                        regApps.SetValue("BlackBrowser", @"Software\Clients\StartMenuInternet\BlackBrowser\Capabilities");
                     }
                 }
 
@@ -128,7 +128,7 @@ namespace BlackBrowser
         {
             try
             {
-                using (RegistryKey key = Registry.CurrentUser.OpenSubKey(@"Software\Clients\StartMenuInternet\BlackFirefox"))
+                using (RegistryKey key = Registry.CurrentUser.OpenSubKey(@"Software\Clients\StartMenuInternet\BlackBrowser"))
                 {
                     return key != null;
                 }

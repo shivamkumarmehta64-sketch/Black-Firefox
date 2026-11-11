@@ -271,7 +271,7 @@ namespace BlackBrowser
         {
             logPath = Program.GetLogFilePath();
             CleanupStalePdfTemp();
-            Log("=== Black Firefox starting (Black Firefox Glassmorphic Edition v9.0.1) ===");
+            Log("=== Black Browser starting (Black Browser Glassmorphic Edition v9.1.0) ===");
 
             string home = string.IsNullOrWhiteSpace(SettingsStore.HomePage) ? "black://home" : SettingsStore.HomePage;
             initialStartupUrl = home;
@@ -290,11 +290,11 @@ namespace BlackBrowser
                         hasExplicitLaunchArg = true;
                         initialStartupUrl = parsed;
                         if (parsed == "https://music.youtube.com")
-                            this.Text = "🎵 YouTube Music Desktop — Black Firefox (Ad-Free)";
+                            this.Text = "🎵 YouTube Music Desktop — Black Browser (Ad-Free)";
                         else if (parsed == "https://www.youtube.com")
-                            this.Text = "▶ YouTube Desktop — Black Firefox (Ad-Free)";
+                            this.Text = "▶ YouTube Desktop — Black Browser (Ad-Free)";
                         else if (isAppWindowMode)
-                            this.Text = "Black Firefox App";
+                            this.Text = "Black Browser App";
                         break;
                     }
                 }
@@ -306,8 +306,8 @@ namespace BlackBrowser
             this.SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
             this.DoubleBuffered = true;
 
-            if (string.IsNullOrEmpty(this.Text) || this.Text == "Black Firefox")
-                this.Text = "Black Firefox";
+            if (string.IsNullOrEmpty(this.Text) || this.Text == "Black Browser" || this.Text == "Black Firefox")
+                this.Text = "Black Browser";
 
             this.Width = 1280;
             this.Height = 820;
@@ -2626,7 +2626,7 @@ namespace BlackBrowser
             string err;
             if (DefaultBrowserManager.RegisterAsDefaultBrowser(out err))
             {
-                ShowSoftCommunication("🌐 Windows Default Apps opened — Set Black Firefox as Default Browser!");
+                ShowSoftCommunication("🌐 Windows Default Apps opened — Set Black Browser as Default Browser!");
             }
             else
             {
@@ -3418,7 +3418,7 @@ namespace BlackBrowser
                                 DialogResult dr = MessageBox.Show(
                                     this,
                                     label + " wants permission to use: " + e.PermissionKind.ToString() + ".\n\nAllow this request?",
-                                    "Permission Request — Black Firefox",
+                                    "Permission Request — Black Browser",
                                     MessageBoxButtons.YesNo,
                                     MessageBoxIcon.Question);
                                 CoreWebView2PermissionState decision = dr == DialogResult.Yes
@@ -3755,7 +3755,7 @@ namespace BlackBrowser
                             using (var sfd = new SaveFileDialog())
                             {
                                 sfd.Filter = "HTML Files (*.html)|*.html|All Files (*.*)|*.*";
-                                sfd.FileName = "black_firefox_bookmarks.html";
+                                sfd.FileName = "black_browser_bookmarks.html";
                                 if (sfd.ShowDialog(this) == DialogResult.OK)
                                 {
                                     BookmarksManager.ExportHtml(sfd.FileName);
@@ -4381,11 +4381,11 @@ namespace BlackBrowser
                 {
                     trayIcon = new NotifyIcon();
                     trayIcon.Icon = new Icon(iconPath);
-                    trayIcon.Text = "Black Firefox (Glassmorphic Edition)";
+                    trayIcon.Text = "Black Browser (Glassmorphic Edition)";
                     trayIcon.Visible = true;
 
                     ContextMenuStrip menu = new ContextMenuStrip();
-                    menu.Items.Add("Open Black Firefox", null, (s, e) => ShowMainWindow());
+                    menu.Items.Add("Open Black Browser", null, (s, e) => ShowMainWindow());
                     menu.Items.Add("⚡ Optimize Memory", null, (s, e) => MemoryTrimmer.TrimProcessMemory());
                     menu.Items.Add(new ToolStripSeparator());
                     menu.Items.Add("Exit", null, (s, e) => ExitApp());
@@ -5082,7 +5082,7 @@ namespace BlackBrowser
                                 updateBtn.Text = "🚀 " + latestUpdateInfo.TagName;
                                 updateBtn.Visible = true;
                             }
-                            ShowSoftCommunication("🚀 Update Available: Black Firefox " + latestUpdateInfo.TagName + " is ready! Click menu or 🚀 button to install.");
+                            ShowSoftCommunication("🚀 Update Available: Black Browser " + latestUpdateInfo.TagName + " is ready! Click menu or 🚀 button to install.");
                         }));
                     }
                 });
@@ -5112,8 +5112,8 @@ namespace BlackBrowser
                         else
                         {
                             MessageBox.Show(this,
-                                "You're running the latest version of Black Firefox (" + UpdateManager.CurrentVersion + ").\n\nNo new updates available on GitHub.",
-                                "Black Firefox — Up to date",
+                                "You're running the latest version of Black Browser (" + UpdateManager.CurrentVersion + ").\n\nNo new updates available on GitHub.",
+                                "Black Browser — Up to date",
                                 MessageBoxButtons.OK,
                                 MessageBoxIcon.Information);
                         }
@@ -5141,13 +5141,13 @@ namespace BlackBrowser
                 ? (latestUpdateInfo.Body.Length > 280 ? latestUpdateInfo.Body.Substring(0, 277) + "..." : latestUpdateInfo.Body)
                 : "Performance improvements, UI refinements, and security patches.";
 
-            string message = "A new version of Black Firefox is available!\n\n"
+            string message = "A new version of Black Browser is available!\n\n"
                 + "• Current Version: " + UpdateManager.CurrentVersion + "\n"
                 + "• Latest Version: " + latestUpdateInfo.TagName + "\n\n"
                 + "What's new:\n" + releaseNotes + "\n\n"
                 + "Would you like to download and install this update now?";
 
-            DialogResult res = MessageBox.Show(this, message, "Update Black Firefox (" + latestUpdateInfo.TagName + ")",
+            DialogResult res = MessageBox.Show(this, message, "Update Black Browser (" + latestUpdateInfo.TagName + ")",
                 MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
 
             if (res == DialogResult.Yes)

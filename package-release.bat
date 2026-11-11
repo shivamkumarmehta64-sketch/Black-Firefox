@@ -1,9 +1,9 @@
 @echo off
 setlocal enabledelayedexpansion
-title Black Firefox - Package Distribution
+title Black Browser - Package Distribution
 
 echo ========================================================
-echo        Black Firefox - Local Release Packager
+echo        Black Browser - Local Release Packager
 echo ========================================================
 echo.
 
@@ -15,11 +15,11 @@ if errorlevel 1 (
 )
 
 set "VERSION=%~1"
-if "%VERSION%"=="" set "VERSION=v9.0.1"
+if "%VERSION%"=="" set "VERSION=v9.1.0"
 set "APP_VER=%VERSION:v=%"
-set "DIST_DIR=dist\BlackFirefox-%VERSION%-Windows-x64"
-set "ZIP_FILE=dist\BlackFirefox-%VERSION%-Windows-x64.zip"
-set "SETUP_EXE=dist\BlackFirefox-%VERSION%-Windows-x64-Setup.exe"
+set "DIST_DIR=dist\BlackBrowser-%VERSION%-Windows-x64"
+set "ZIP_FILE=dist\BlackBrowser-%VERSION%-Windows-x64.zip"
+set "SETUP_EXE=dist\BlackBrowser-%VERSION%-Windows-x64-Setup.exe"
 
 echo.
 echo [2/5] Assembling portable distribution folder...
@@ -51,7 +51,7 @@ if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles(x86
 if exist "%ProgramFiles%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles%\Inno Setup 6\ISCC.exe"
 if not defined ISCC goto :skip_iscc
 
-"%ISCC%" /Q "/DMyAppVersion=%APP_VER%" "/DMySetupBaseName=BlackFirefox-%VERSION%-Windows-x64-Setup" "/Odist" installer.iss
+"%ISCC%" /Q "/DMyAppVersion=%APP_VER%" "/DMySetupBaseName=BlackBrowser-%VERSION%-Windows-x64-Setup" "/Odist" installer.iss
 if errorlevel 1 (
     echo [WARN] Inno Setup compilation failed; continuing with ZIP distribution.
 ) else (

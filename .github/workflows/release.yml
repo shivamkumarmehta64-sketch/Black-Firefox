@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version tag (e.g. v9.0.1)'
+        description: 'Version tag (e.g. v9.1.0)'
         required: true
-        default: 'v9.0.1'
+        default: 'v9.1.0'
 
 permissions:
   contents: write
@@ -22,7 +22,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Build Black Firefox Executable (x64)
+      - name: Build Black Browser Executable (x64)
         shell: cmd
         run: ci-build.bat
 
@@ -54,7 +54,7 @@ jobs:
         if: steps.signpath_check.outputs.enabled == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: BlackFirefox-unsigned
+          name: BlackBrowser-unsigned
           path: Black.exe
 
       - name: Sign Black.exe with SignPath.io
@@ -81,10 +81,10 @@ jobs:
         shell: pwsh
         run: |
           $ver = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}" } else { "${{ github.event.inputs.version }}" }
-          if (-not $ver) { $ver = "v9.0.1" }
+          if (-not $ver) { $ver = "v9.1.0" }
           $appVer = $ver.TrimStart('v', 'V')
 
-          $pkgDir = "BlackFirefox-$ver-Windows-x64"
+          $pkgDir = "BlackBrowser-$ver-Windows-x64"
           New-Item -ItemType Directory -Force -Path $pkgDir | Out-Null
 
           Copy-Item "Black.exe" -Destination "$pkgDir\"
@@ -100,7 +100,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path "$pkgDir\assets\icons" | Out-Null
           Copy-Item "assets\icons\*.png" -Destination "$pkgDir\assets\icons\"
 
-          $zipName = "BlackFirefox-$ver-Windows-x64.zip"
+          $zipName = "BlackBrowser-$ver-Windows-x64.zip"
           Compress-Archive -Path "$pkgDir\*" -DestinationPath $zipName -Force
           Write-Host "Created distribution zip: $zipName"
 
@@ -114,7 +114,7 @@ jobs:
             $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           }
 
-          $setupBase = "BlackFirefox-$ver-Windows-x64-Setup"
+          $setupBase = "BlackBrowser-$ver-Windows-x64-Setup"
           New-Item -ItemType Directory -Force -Path "dist" | Out-Null
           & $iscc "/Q" "/DMyAppVersion=$appVer" "/DMySetupBaseName=$setupBase" "/O." "installer.iss"
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed." }
@@ -134,22 +134,22 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          name: Black Firefox ${{ github.ref_name }}
+          name: Black Browser ${{ github.ref_name }}
           draft: false
           prerelease: false
           generate_release_notes: true
           files: |
-            BlackFirefox-*-Setup.exe
-            BlackFirefox-*.zip
+            BlackBrowser-*-Setup.exe
+            BlackBrowser-*.zip
             SHA256SUMS.txt
 
       - name: Upload Artifacts (Workflow Dispatch)
         uses: actions/upload-artifact@v4
         if: "!startsWith(github.ref, 'refs/tags/')"
         with:
-          name: BlackFirefox-Distribution
+          name: BlackBrowser-Distribution
           path: |
             Black.exe
-            BlackFirefox-*.zip
-            BlackFirefox-*-Setup.exe
+            BlackBrowser-*.zip
+            BlackBrowser-*-Setup.exe
             SHA256SUMS.txt

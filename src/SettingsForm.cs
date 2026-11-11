@@ -65,7 +65,7 @@ namespace BlackBrowser
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "black-webview2", "dark_notes.txt");
 
-            this.Text = "Black Firefox — Settings";
+            this.Text = "Black Browser — Settings";
             this.StartPosition = FormStartPosition.CenterParent;
             this.MinimizeBox = false;
             this.MaximizeBox = false;
@@ -456,7 +456,7 @@ namespace BlackBrowser
             legalPage.Padding = new Padding(20);
 
             var legalTitle = new Label();
-            legalTitle.Text = "Black Firefox Legal & Governance";
+            legalTitle.Text = "Black Browser Legal & Governance";
             legalTitle.Location = new Point(0, 0);
             legalTitle.AutoSize = true;
             legalTitle.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
@@ -733,7 +733,7 @@ namespace BlackBrowser
                 catch { }
 
                 return
-                    "BLACK FIREFOX DEVICE DIAGNOSTICS\n\n" +
+                    "BLACK BROWSER DEVICE DIAGNOSTICS\n\n" +
                     "OS:       " + Environment.OSVersion + "\n" +
                     "Arch:     " + (Environment.Is64BitOperatingSystem ? "x64" : "x86") + "\n" +
                     "CPU:      " + Environment.ProcessorCount + " cores\n" +

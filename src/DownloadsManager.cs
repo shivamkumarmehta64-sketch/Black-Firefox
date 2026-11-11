@@ -139,7 +139,7 @@ namespace BlackBrowser
 <html>
 <head>
 <meta charset='utf-8'>
-<title>Local Downloads — Black Firefox</title>
+<title>Local Downloads — Black Browser</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Segoe UI Variable Display','Segoe UI',system-ui,-apple-system,sans-serif;background:" + bg + @";color:" + textColor + @";padding:36px 24px;max-width:860px;margin:0 auto;-webkit-font-smoothing:antialiased}

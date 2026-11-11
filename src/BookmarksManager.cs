@@ -45,7 +45,7 @@ namespace BlackBrowser
                         {
                             new BookmarkItem
                             {
-                                Title = "Black Firefox",
+                                Title = "Black Browser",
                                 Url = "https://shivamkumarmehta64-sketch.github.io/Black-Firefox/",
                                 AddedDate = DateTime.Now.ToString("yyyy-MM-dd HH:mm")
                             },
@@ -245,7 +245,7 @@ namespace BlackBrowser
 <html>
 <head>
 <meta charset='utf-8'>
-<title>Local Bookmarks — Black Firefox</title>
+<title>Local Bookmarks — Black Browser</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Segoe UI Variable Display','Segoe UI',system-ui,-apple-system,sans-serif;background:" + bg + @";color:" + textColor + @";padding:36px 24px;max-width:880px;margin:0 auto;-webkit-font-smoothing:antialiased}
