@@ -120,7 +120,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed." }
           Write-Host "Created installer: $setupBase.exe"
 
-          $filesToHash = @("Black.exe", $zipName, "$setupBase.exe")
+          $filesToHash = @("$setupBase.exe", $zipName)
           $sumLines = foreach ($f in $filesToHash) {
             if (Test-Path $f) {
               $h = (Get-FileHash -Path $f -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -139,9 +139,8 @@ jobs:
           prerelease: false
           generate_release_notes: true
           files: |
-            Black.exe
-            BlackFirefox-*.zip
             BlackFirefox-*-Setup.exe
+            BlackFirefox-*.zip
             SHA256SUMS.txt
 
       - name: Upload Artifacts (Workflow Dispatch)
