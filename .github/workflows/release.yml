@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   build-and-release:
@@ -40,29 +41,41 @@ jobs:
         id: signpath_check
         shell: pwsh
         env:
+          API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
           ORG_ID: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
           PROJ_SLUG: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
           POL_SLUG: ${{ secrets.SIGNPATH_SIGNING_POLICY_SLUG }}
         run: |
-          $has = (-not [string]::IsNullOrWhiteSpace($env:ORG_ID)) -and (-not [string]::IsNullOrWhiteSpace($env:PROJ_SLUG)) -and (-not [string]::IsNullOrWhiteSpace($env:POL_SLUG))
+          $has = (-not [string]::IsNullOrWhiteSpace($env:API_TOKEN)) -and (-not [string]::IsNullOrWhiteSpace($env:ORG_ID)) -and (-not [string]::IsNullOrWhiteSpace($env:PROJ_SLUG)) -and (-not [string]::IsNullOrWhiteSpace($env:POL_SLUG))
           "enabled=$($has.ToString().ToLower())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Upload Unsigned Black.exe for SignPath
+        id: upload_unsigned
+        if: steps.signpath_check.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: BlackFirefox-unsigned
+          path: Black.exe
 
       - name: Sign Black.exe with SignPath.io
         if: steps.signpath_check.outputs.enabled == 'true'
-        uses: signpath/sign-action@v1
+        uses: signpath/github-action-submit-signing-request@v3
         with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
           project-slug: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: ${{ secrets.SIGNPATH_SIGNING_POLICY_SLUG }}
-          artifact-path: Black.exe
-          output-path: Black-signed.exe
+          github-artifact-id: ${{ steps.upload_unsigned.outputs.artifact-id }}
           wait-for-completion: true
+          output-artifact-directory: ./signed
 
       - name: Use Signed Binary for Packaging
         if: steps.signpath_check.outputs.enabled == 'true'
         shell: pwsh
         run: |
-          Move-Item -Force "Black-signed.exe" "Black.exe"
+          $signed = Get-ChildItem -Path "./signed" -Filter "*.exe" -Recurse | Select-Object -First 1
+          if (-not $signed) { throw "Signed .exe not found under ./signed" }
+          Copy-Item -Force $signed.FullName "Black.exe"
 
       - name: Prepare Release Packages (Portable ZIP + Windows Setup + SHA256SUMS)
         shell: pwsh
