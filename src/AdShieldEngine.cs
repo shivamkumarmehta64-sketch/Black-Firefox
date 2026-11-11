@@ -13,18 +13,49 @@ namespace BlackBrowser
         private static readonly string[] AdDomainList = new string[]
         {
             "doubleclick.net", "googlesyndication.com", "googleadservices.com",
-            "adservice.google.com", "adnxs.com", "rubiconproject.com",
-            "pubmatic.com", "openx.net", "criteo.com", "taboola.com",
-            "outbrain.com", "scorecardresearch.com", "quantserve.com"
+            "pagead2.googlesyndication.com", "adservice.google.com", "google-analytics.com",
+            "googletagmanager.com", "googletagservices.com", "adsystem.com", "amazon-adsystem.com",
+            "adnxs.com", "rubiconproject.com", "pubmatic.com", "openx.net", "criteo.com",
+            "criteo.net", "taboola.com", "outbrain.com", "scorecardresearch.com",
+            "quantserve.com", "quantcount.com", "hotjar.com", "mixpanel.com",
+            "segment.io", "segment.com", "amplitude.com", "heapanalytics.com",
+            "fullstory.com", "clarity.ms", "mouseflow.com", "crazyegg.com",
+            "optimizely.com", "branch.io", "adjust.com", "appsflyer.com",
+            "kochava.com", "ads.twitter.com", "analytics.twitter.com", "connect.facebook.net",
+            "pixel.facebook.com", "ads.linkedin.com", "snap.licdn.com", "analytics.tiktok.com",
+            "ads.tiktok.com", "ads.reddit.com", "alb.reddit.com", "adroll.com",
+            "adsafeprotected.com", "moatads.com", "doubleverify.com", "mediavine.com",
+            "adthrive.com", "revcontent.com", "mgid.com", "zedo.com",
+            "propellerads.com", "popads.net", "popcash.net", "adsterra.com",
+            "hilltopads.net", "exoclick.com", "trafficjunky.net", "chartbeat.com",
+            "newrelic.com", "nr-data.net", "bugsnag.com", "sentry.io",
+            "rollbar.com", "logrocket.com", "intercom.io", "bat.bing.com",
+            "mc.yandex.ru", "ad.mail.ru", "advertising.com", "bidswitch.net",
+            "casalemedia.com", "contextweb.com", "demdex.net", "omtrdc.net",
+            "2o7.net", "everesttech.net", "flashtalking.com", "indexww.com",
+            "krxd.net", "lijit.com", "mathtag.com", "media.net",
+            "mookie1.com", "owneriq.net", "rlcdn.com", "rkdms.com",
+            "sharethrough.com", "simpli.fi", "sitescout.com", "smartadserver.com",
+            "sonobi.com", "spotxchange.com", "tapad.com", "teads.tv",
+            "tremorhub.com", "tribalfusion.com", "turn.com", "yieldmo.com",
+            "3lift.com", "33across.com", "coinhive.com", "coin-hive.com"
         };
 
         private static readonly string[] AdPathFragments = new string[]
         {
-            "/pagead/", "/api/stats/ads", "/ptracking", "/get_midroll_info"
+            "/pagead/", "/api/stats/ads", "/ptracking", "/get_midroll_info",
+            "/ads/ga-audiences", "/pixel.gif", "/beacon.js", "/g/collect?"
+        };
+
+        private static readonly HashSet<string> TrackingQueryParams = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "utm_id",
+            "fbclid", "gclid", "dclid", "yclid", "msclkid", "mc_cid", "mc_eid",
+            "igshid", "igsh", "_hsenc", "_hsmi", "mkt_tok", "ref_src"
         };
 
         private static readonly HashSet<string> AdDomainSet = new HashSet<string>(AdDomainList, StringComparer.OrdinalIgnoreCase);
-        private static readonly BloomFilter _bloomFilter = new BloomFilter(128, 0.005);
+        private static readonly BloomFilter _bloomFilter = new BloomFilter(1024, 0.002);
         private static bool _bloomInitialized = false;
         private static readonly object _bloomLock = new object();
         private static long _totalBlockedCount = 0;
@@ -222,7 +253,45 @@ namespace BlackBrowser
 
         public static string Script { get { return GlobalAdShieldScript; } }
 
-        public static async Task AttachAdShield(WebView2 wv, Action onAdBlocked)
+        public static string StripTrackingParameters(string rawUrl)
+        {
+            if (string.IsNullOrWhiteSpace(rawUrl)) return null;
+            Uri u;
+            if (!Uri.TryCreate(rawUrl, UriKind.Absolute, out u)) return null;
+            if (u.Scheme != Uri.UriSchemeHttp && u.Scheme != Uri.UriSchemeHttps) return null;
+            string q = u.Query;
+            if (string.IsNullOrEmpty(q) || q.Length <= 1) return null;
+
+            string rawQuery = q.Substring(1);
+            string[] parts = rawQuery.Split('&');
+            List<string> kept = new List<string>();
+            bool stripped = false;
+            foreach (string part in parts)
+            {
+                if (string.IsNullOrEmpty(part)) continue;
+                int eq = part.IndexOf('=');
+                string key = eq >= 0 ? part.Substring(0, eq) : part;
+                string decodedKey = Uri.UnescapeDataString(key);
+                if (TrackingQueryParams.Contains(decodedKey))
+                {
+                    stripped = true;
+                    continue;
+                }
+                kept.Add(part);
+            }
+            if (!stripped) return null;
+
+            UriBuilder ub = new UriBuilder(u);
+            ub.Query = kept.Count > 0 ? string.Join("&", kept.ToArray()) : "";
+            return ub.Uri.AbsoluteUri;
+        }
+
+        public static Task AttachAdShield(WebView2 wv, Action onAdBlocked)
+        {
+            return AttachAdShield(wv, (domain) => { if (onAdBlocked != null) onAdBlocked(); });
+        }
+
+        public static async Task AttachAdShield(WebView2 wv, Action<string> onBlockedDomain)
         {
             if (wv == null || wv.CoreWebView2 == null) return;
 
@@ -273,10 +342,12 @@ namespace BlackBrowser
                 }
 
                 bool blocked = false;
+                string blockedHost = "";
                 Uri parsed;
                 if (Uri.TryCreate(rawUri, UriKind.Absolute, out parsed))
                 {
-                    blocked = IsBlockedDomain(parsed.Host);
+                    blockedHost = parsed.Host ?? "";
+                    blocked = IsBlockedDomain(blockedHost);
                 }
 
                 if (!blocked)
@@ -286,6 +357,7 @@ namespace BlackBrowser
                         if (uri.Contains(frag))
                         {
                             blocked = true;
+                            if (string.IsNullOrEmpty(blockedHost)) blockedHost = frag;
                             break;
                         }
                     }
@@ -296,7 +368,7 @@ namespace BlackBrowser
                     args.Response = wv.CoreWebView2.Environment.CreateWebResourceResponse(
                         null, 200, "OK", "Content-Type: text/plain");
                     Interlocked.Increment(ref _totalBlockedCount);
-                    if (onAdBlocked != null) onAdBlocked();
+                    if (onBlockedDomain != null) onBlockedDomain(blockedHost);
                 }
             };
 

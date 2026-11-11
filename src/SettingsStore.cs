@@ -32,6 +32,9 @@ namespace BlackBrowser
         private static bool allowDeveloperTools = false;
         private static bool restoreSession = true;
         private static bool adShieldEnabled = true;
+        private static bool stripTrackingParams = true;
+        private static bool strictTrackingPrevention = true;
+        private static int maxActiveTabs = 4;
         private static int cornerRadius = 12;
 
         static SettingsStore()
@@ -87,6 +90,10 @@ namespace BlackBrowser
                             allowDeveloperTools = data.AllowDeveloperTools;
                             restoreSession = data.RestoreSession;
                             adShieldEnabled = data.AdShieldEnabled;
+                            stripTrackingParams = data.StripTrackingParams;
+                            strictTrackingPrevention = data.StrictTrackingPrevention;
+                            if (data.MaxActiveTabs >= 2 && data.MaxActiveTabs <= 16)
+                                maxActiveTabs = data.MaxActiveTabs;
                             if (data.CornerRadius >= 0)
                                 cornerRadius = data.CornerRadius;
                         }
@@ -233,6 +240,29 @@ namespace BlackBrowser
             set { adShieldEnabled = value; Save(); }
         }
 
+        public static bool StripTrackingParams
+        {
+            get { return stripTrackingParams; }
+            set { stripTrackingParams = value; Save(); }
+        }
+
+        public static bool StrictTrackingPrevention
+        {
+            get { return strictTrackingPrevention; }
+            set { strictTrackingPrevention = value; Save(); }
+        }
+
+        public static int MaxActiveTabs
+        {
+            get { return maxActiveTabs; }
+            set
+            {
+                int clamped = value < 2 ? 2 : (value > 16 ? 16 : value);
+                maxActiveTabs = clamped;
+                Save();
+            }
+        }
+
         private static string NotesFilePath
         {
             get
@@ -350,6 +380,9 @@ namespace BlackBrowser
                         AllowDeveloperTools = allowDeveloperTools,
                         RestoreSession = restoreSession,
                         AdShieldEnabled = adShieldEnabled,
+                        StripTrackingParams = stripTrackingParams,
+                        StrictTrackingPrevention = strictTrackingPrevention,
+                        MaxActiveTabs = maxActiveTabs,
                         CornerRadius = cornerRadius
                     });
                     File.WriteAllText(settingsFilePath, ProtectString(json), Encoding.UTF8);
@@ -380,6 +413,9 @@ namespace BlackBrowser
             public bool AllowDeveloperTools { get; set; }
             public bool RestoreSession { get; set; }
             public bool AdShieldEnabled { get; set; }
+            public bool StripTrackingParams { get; set; }
+            public bool StrictTrackingPrevention { get; set; }
+            public int MaxActiveTabs { get; set; }
             public int CornerRadius { get; set; }
 
             public SettingsData()
@@ -391,6 +427,9 @@ namespace BlackBrowser
                 ShowTelemetry = true;
                 RestoreSession = true;
                 AdShieldEnabled = true;
+                StripTrackingParams = true;
+                StrictTrackingPrevention = true;
+                MaxActiveTabs = 4;
             }
         }
     }

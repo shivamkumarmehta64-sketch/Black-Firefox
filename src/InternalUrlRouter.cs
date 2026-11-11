@@ -162,7 +162,11 @@ namespace BlackBrowser
             MemoryStream stream = new MemoryStream(bytes);
             return env.CreateWebResourceResponse(
                 stream, 200, "OK",
-                "Content-Type: text/html; charset=utf-8\r\nCache-Control: no-store");
+                "Content-Type: text/html; charset=utf-8\r\n" +
+                "Cache-Control: no-store\r\n" +
+                "X-Frame-Options: DENY\r\n" +
+                "X-Content-Type-Options: nosniff\r\n" +
+                "Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: https:; connect-src 'none'; font-src 'self' data:; object-src 'none'; frame-ancestors 'none'; base-uri 'none'");
         }
     }
 }

@@ -16,6 +16,8 @@ namespace BlackBrowser
         public string Path { get; set; }
         public bool Enabled { get; set; }
         public string IconPath { get; set; }
+        public int ManifestVersion { get; set; }
+        public string PermissionsSummary { get; set; }
     }
 
     public static class ExtensionManager
@@ -150,6 +152,37 @@ namespace BlackBrowser
                 string name = dict.ContainsKey("name") ? dict["name"].ToString() : Path.GetFileName(folderPath);
                 string version = dict.ContainsKey("version") ? dict["version"].ToString() : "1.0.0";
                 string desc = dict.ContainsKey("description") ? dict["description"].ToString() : "Unpacked browser extension";
+                int manifestVer = 2;
+                if (dict.ContainsKey("manifest_version") && dict["manifest_version"] != null)
+                {
+                    int mv;
+                    if (int.TryParse(dict["manifest_version"].ToString(), out mv)) manifestVer = mv;
+                }
+
+                List<string> perms = new List<string>();
+                bool hasBroadAccess = false;
+                string[] permKeys = new string[] { "permissions", "host_permissions" };
+                foreach (string pk in permKeys)
+                {
+                    if (dict.ContainsKey(pk) && dict[pk] is System.Collections.IEnumerable && !(dict[pk] is string))
+                    {
+                        foreach (object po in (System.Collections.IEnumerable)dict[pk])
+                        {
+                            string ps = po != null ? po.ToString() : "";
+                            if (string.IsNullOrWhiteSpace(ps)) continue;
+                            perms.Add(ps);
+                            if (ps == "<all_urls>" || ps.Contains("*://*/*") || ps == "cookies" ||
+                                ps == "webRequest" || ps == "debugger" || ps == "nativeMessaging")
+                            {
+                                hasBroadAccess = true;
+                            }
+                        }
+                    }
+                }
+                string permSummary = perms.Count == 0
+                    ? ("MV" + manifestVer + " • No elevated permissions")
+                    : ("MV" + manifestVer + (hasBroadAccess ? " • Elevated: " : " • ") + string.Join(", ", perms.ToArray()));
+                if (permSummary.Length > 140) permSummary = permSummary.Substring(0, 137) + "...";
 
                 string id = Guid.NewGuid().ToString("N");
 
@@ -166,7 +199,9 @@ namespace BlackBrowser
                         Description = desc,
                         Path = folderPath,
                         Enabled = true,
-                        IconPath = ""
+                        IconPath = "",
+                        ManifestVersion = manifestVer,
+                        PermissionsSummary = permSummary
                     });
 
                     SaveExtensions();
@@ -227,6 +262,7 @@ namespace BlackBrowser
                     string safeDesc = System.Web.HttpUtility.HtmlEncode(ext.Description ?? "");
                     string safePath = System.Web.HttpUtility.HtmlEncode(ext.Path ?? "");
                     string safeId = System.Web.HttpUtility.HtmlEncode(ext.Id ?? "");
+                    string safePerms = System.Web.HttpUtility.HtmlEncode(ext.PermissionsSummary ?? ("MV" + (ext.ManifestVersion > 0 ? ext.ManifestVersion : 2) + " • Unaudited"));
                     string attrPath = AttributeEscape(ext.Path ?? "");
                     string isChecked = ext.Enabled ? "checked" : "";
                     string statusBadge = ext.Enabled ? "<span class='badge active'>Active</span>" : "<span class='badge inactive'>Disabled</span>";
@@ -242,6 +278,7 @@ namespace BlackBrowser
                                     {2}
                                 </div>
                                 <div class='ext-desc'>{3}</div>
+                                <div class='ext-desc' style='margin-top:4px;font-size:11.5px;color:#cbd5e1;'>🛡️ {8}</div>
                                 <div class='ext-path' title='{7}'>📁 {4}</div>
                             </div>
                         </div>
@@ -252,7 +289,7 @@ namespace BlackBrowser
                             </label>
                             <button type='button' class='btn-danger'>🗑️ Remove</button>
                         </div>
-                    </div>", safeName, safeVer, statusBadge, safeDesc, safePath, isChecked, safeId, attrPath));
+                    </div>", safeName, safeVer, statusBadge, safeDesc, safePath, isChecked, safeId, attrPath, safePerms));
                 }
             }
 

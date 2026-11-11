@@ -32,12 +32,46 @@ namespace BlackBrowser
         private readonly Dictionary<TabPage, LruNode> _map = new Dictionary<TabPage, LruNode>();
         private LruNode _head; // Most recently used
         private LruNode _tail; // Least recently used
-        private readonly int _maxActiveTabs;
+        private int _maxActiveTabs;
         private readonly object _lock = new object();
+
+        public Action<TabPage> OnSuspensionChanged;
 
         public LruTabManager(int maxActiveTabs = 4)
         {
             _maxActiveTabs = Math.Max(2, maxActiveTabs);
+        }
+
+        public void SetMaxActiveTabs(int maxActiveTabs)
+        {
+            lock (_lock)
+            {
+                _maxActiveTabs = Math.Max(2, maxActiveTabs);
+                EnforceCapacity();
+            }
+        }
+
+        public bool IsTabSuspended(TabPage page)
+        {
+            if (page == null) return false;
+            lock (_lock)
+            {
+                LruNode node;
+                return _map.TryGetValue(page, out node) && node.IsSuspended;
+            }
+        }
+
+        public int GetSuspendedCount()
+        {
+            lock (_lock)
+            {
+                int count = 0;
+                foreach (var kvp in _map)
+                {
+                    if (kvp.Value.IsSuspended) count++;
+                }
+                return count;
+            }
         }
 
         public void RegisterTab(TabPage page, WebView2 wv)
@@ -72,11 +106,16 @@ namespace BlackBrowser
                     try
                     {
                         if (!node.WebView.Visible) node.WebView.Visible = true;
+                        bool wasSuspended = node.IsSuspended;
                         if (node.IsSuspended && node.WebView.CoreWebView2 != null)
                         {
                             node.WebView.CoreWebView2.Resume();
                         }
                         node.IsSuspended = false;
+                        if (wasSuspended && OnSuspensionChanged != null)
+                        {
+                            try { OnSuspensionChanged(page); } catch { }
+                        }
                     }
                     catch { }
                 }
@@ -131,7 +170,7 @@ namespace BlackBrowser
             }
         }
 
-        private static void SuspendNode(LruNode node)
+        private void SuspendNode(LruNode node)
         {
             if (node == null || node.IsSuspended || node.WebView == null || node.WebView.IsDisposed) return;
             try
@@ -148,6 +187,7 @@ namespace BlackBrowser
                     var uiScheduler = System.Threading.SynchronizationContext.Current != null
                         ? System.Threading.Tasks.TaskScheduler.FromCurrentSynchronizationContext()
                         : System.Threading.Tasks.TaskScheduler.Default;
+                    var cb = OnSuspensionChanged;
                     task.ContinueWith(t =>
                     {
                         try
@@ -155,6 +195,7 @@ namespace BlackBrowser
                             if (!t.IsFaulted && !t.IsCanceled && t.Result)
                             {
                                 node.IsSuspended = true;
+                                if (cb != null) cb(node.Page);
                             }
                         }
                         catch { }
